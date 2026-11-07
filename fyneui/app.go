@@ -1,20 +1,43 @@
 package fyneui
 
 import (
+	"context"
+
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/app"
+	fyneapp "fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/lugvitc/whats4linux/api"
 )
 
-func Run(a *api.Api) fyne.App {
-	myApp := app.New()
-	w := myApp.NewWindow("whats4linux (fyne)")
-	w.SetMainMenu(fyne.NewMainMenu(fyne.NewMenu("File", fyne.NewMenuItem("Quit", func() { myApp.Quit() }))))
-	w.SetContent(container.NewCenter(widget.NewLabel("Migrating to Fyne - WIP")))
-	w.Resize(fyne.NewSize(1100, 700))
-	w.ShowAndRun()
-	return myApp
+type FyneApp struct {
+	app    fyne.App
+	win    fyne.Window
+	api    *api.Api
+	ctx    context.Context
+	cancel context.CancelFunc
+	state  *AppState
+	stack  *fyne.Container
+}
+
+func New(a *api.Api) *FyneApp {
+	ctx, cancel := context.WithCancel(context.Background())
+	fa := &FyneApp{
+		app:    fyneapp.New(),
+		api:    a,
+		ctx:    ctx,
+		cancel: cancel,
+		state:  &AppState{api: a, Screen: "login"},
+	}
+	fa.win = fa.app.NewWindow("what4winnative")
+	fa.stack = container.NewStack(widget.NewLabel("Loading..."))
+	fa.win.SetContent(fa.stack)
+	fa.win.Resize(fyne.NewSize(1100, 700))
+	return fa
+}
+
+func (fa *FyneApp) Run() {
+	defer fa.cancel()
+	fa.win.ShowAndRun()
 }
