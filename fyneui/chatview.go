@@ -40,6 +40,7 @@ type ChatView struct {
 	rendered     map[string]bool
 	lastDay      string
 	lastSenderID string
+	lastFromMe   bool
 	hasLast      bool
 
 	mu              sync.Mutex
@@ -169,6 +170,9 @@ func (cv *ChatView) loadMessages(ctx context.Context) {
 	fyne.Do(func() {
 		cv.messages.Objects = nil
 		cv.lastDay = ""
+		cv.hasLast = false
+		cv.lastSenderID = ""
+		cv.lastFromMe = false
 		if len(msgs) == 0 {
 			empty := canvas.NewText("No messages here yet.", waMuted)
 			empty.Alignment = fyne.TextAlignCenter
@@ -207,10 +211,15 @@ func (cv *ChatView) addMessageLocked(m store.DecodedMessage) {
 		cv.lastDay = label
 		cv.hasLast = false // separator breaks a sender run (MessageList.tsx:150)
 	}
+	prevSender := cv.lastSenderID
+	hadPrev := cv.hasLast
 	if m.Info.ID != "" {
 		cv.rendered[m.Info.ID] = true
 	}
-	cv.messages.Add(cv.bubble(m))
+	// grouping per MessageList.tsx:156-159 (skip separators)
+	first := !hadPrev || prevSender != senderRunID(m) || m.Info.IsFromMe != cv.lastFromMe
+	cv.lastFromMe = m.Info.IsFromMe
+	cv.messages.Add(cv.bubble(m, first))
 	cv.lastSenderID = senderRunID(m)
 	cv.hasLast = true
 }
@@ -283,8 +292,8 @@ func formatMsgTimestamp(ts string) string {
 
 // bubble renders one message like MessageItem.tsx: media block for
 // image/video/sticker/audio/document, HTML rich text for text, meta row with
-// time + ticks inside the bubble.
-func (cv *ChatView) bubble(m store.DecodedMessage) fyne.CanvasObject {
+// time + ticks inside the bubble. first controls group/avatar/spacing run.
+func (cv *ChatView) bubble(m store.DecodedMessage, first bool) fyne.CanvasObject {
 	fromMe := m.Info.IsFromMe
 	bg := waRecv
 	if fromMe {
@@ -328,7 +337,6 @@ func (cv *ChatView) bubble(m store.DecodedMessage) fyne.CanvasObject {
 	}
 
 	inner := container.NewVBox(container.NewPadded(body), cv.metaRow(m, fromMe))
-	first := cv.firstInGroup(m)
 	if isGroupJID(cv.jid) && !fromMe && first {
 		col := profileColorNRGBA(m.Info.Sender)
 		name := canvas.NewText(senderLabel(m), col)
@@ -651,7 +659,7 @@ func (cv *ChatView) firstInGroup(m store.DecodedMessage) bool {
 	if !cv.hasLast {
 		return true
 	}
-	return cv.lastSenderID != senderRunID(m)
+	return cv.lastSenderID != senderRunID(m) || m.Info.IsFromMe != cv.lastFromMe
 }
 
 func senderRunID(m store.DecodedMessage) string {

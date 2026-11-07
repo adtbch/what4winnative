@@ -67,7 +67,7 @@ func renderBubble(t *testing.T, name string, fromMe bool, text string) image.Ima
 	if text != "" {
 		m.Content = &store.DecodedMessageContent{Conversation: text}
 	}
-	return renderPNG(t, name, cv.bubble(m), fyne.NewSize(520, 140))
+	return renderPNG(t, name, cv.bubble(m, true), fyne.NewSize(520, 140))
 }
 
 // TestBubbleTextVisible is the T10 regression: before 0e11859 every text
@@ -141,7 +141,7 @@ func TestBubbleLongToken(t *testing.T) {
 	long := "https://example.com/" + strings.Repeat("verylongsegment/", 8)
 	m := store.DecodedMessage{Info: store.DecodedMessageInfo{ID: "1", IsFromMe: true, Timestamp: "2026-11-08T10:00:00Z"},
 		Content: &store.DecodedMessageContent{Conversation: long}}
-	img := renderPNG(t, "bubble_long_url", cv.bubble(m), fyne.NewSize(420, 220))
+	img := renderPNG(t, "bubble_long_url", cv.bubble(m, true), fyne.NewSize(420, 220))
 	b := img.Bounds()
 	bright, y0, y1 := 0, b.Max.Y, 0
 	for y := b.Min.Y; y < b.Max.Y; y++ {
@@ -333,14 +333,14 @@ func TestBubbleParityNumericBBox(t *testing.T) {
 	mk := func(id, txt string, fromMe bool) store.DecodedMessage {
 		return store.DecodedMessage{Info: store.DecodedMessageInfo{ID: id, IsFromMe: fromMe, Timestamp: "2025-07-11T10:05:00Z"}, Content: &store.DecodedMessageContent{Conversation: txt}}
 	}
-	sent := renderPNG(t, "bbox_sent", cv.bubble(mk("bs", "halo bro apa kabar hari ini", true)), fyne.NewSize(520, 220))
+	sent := renderPNG(t, "bbox_sent", cv.bubble(mk("bs", "halo bro apa kabar hari ini", true), true), fyne.NewSize(520, 220))
 	sx0, sy0, sx1, sy1, sn := dominantCardBBox(sent, hexNRGBA("#144d37"), 35)
 	if sn < 600 || sx1-sx0 < 60 || sy1-sy0 < 24 { t.Fatalf("sent card bbox weak: n=%d bbox=%d,%d..%d,%d (React 178x53 rel306,16)", sn, sx0, sy0, sx1, sy1) }
-	recv := renderPNG(t, "bbox_recv", cv.bubble(mk("br", "halo bro apa kabar hari ini", false)), fyne.NewSize(520, 220))
+	recv := renderPNG(t, "bbox_recv", cv.bubble(mk("br", "halo bro apa kabar hari ini", false), true), fyne.NewSize(520, 220))
 	_, _, rx1, ry1, rn := dominantCardBBox(recv, hexNRGBA("#242626"), 35)
 	if rn < 600 || rx1 < 60 || ry1 < 24 { t.Fatalf("recv card bbox weak: n=%d (React 178x53 rel36,16)", rn) }
-	plain := renderPNG(t, "bbox_plain", cv.bubble(mk("bp", "halo", true)), fyne.NewSize(520, 220))
-	emoji := renderPNG(t, "bbox_emoji", cv.bubble(mk("be", "😂😂😂", true)), fyne.NewSize(520, 220))
+	plain := renderPNG(t, "bbox_plain", cv.bubble(mk("bp", "halo", true), true), fyne.NewSize(520, 220))
+	emoji := renderPNG(t, "bbox_emoji", cv.bubble(mk("be", "😂😂😂", true), true), fyne.NewSize(520, 220))
 	ph, eh := brightInkHeight(plain, hexNRGBA("#144d37")), brightInkHeight(emoji, hexNRGBA("#144d37"))
 	if ph == 0 || eh <= ph { t.Fatalf("emoji body ink not larger than plain (React body 30/40 vs 14/20): plainH=%d emojiH=%d", ph, eh) }
 }
@@ -348,7 +348,7 @@ func TestBubbleParityNumericBBox(t *testing.T) {
 func TestBubbleParityGroupSender(t *testing.T) {
 	cv := &ChatView{jid: "123@g.us", maxBubble: 560}
 	m := store.DecodedMessage{Info: store.DecodedMessageInfo{ID: "g1", IsFromMe: false, Sender: "6281@s.whatsapp.net", Timestamp: "2025-07-11T10:05:00Z"}, Content: &store.DecodedMessageContent{Conversation: "halo grup"}}
-	img := renderPNG(t, "bbox_group", cv.bubble(m), fyne.NewSize(520, 260))
+	img := renderPNG(t, "bbox_group", cv.bubble(m, true), fyne.NewSize(520, 260))
 	_, _, _, _, n := dominantCardBBox(img, hexNRGBA("#242626"), 35)
 	if n < 600 { t.Fatalf("group recv card weak n=%d (React 178x73 rel64,16 + sender)", n) }
 }
