@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"log"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,10 +15,10 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/driver/desktop"
-	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/lugvitc/whats4linux/api"
+	"github.com/lugvitc/whats4linux/internal/misc"
 	"github.com/lugvitc/whats4linux/internal/store"
 	"go.mau.fi/whatsmeow/types"
 )
@@ -34,9 +35,11 @@ type ChatView struct {
 	header   *chatHeader
 	cancel   context.CancelFunc
 
-	maxBubble float32
-	rendered  map[string]bool
-	lastDay   string
+	maxBubble    float32
+	rendered     map[string]bool
+	lastDay      string
+	lastSenderID string
+	hasLast      bool
 }
 
 func NewChatView(fa *FyneApp, jid string) *ChatView {
@@ -198,11 +201,14 @@ func (cv *ChatView) addMessageLocked(m store.DecodedMessage) {
 	if label := messageDayLabel(msgTime(m)); label != "" && label != cv.lastDay {
 		cv.messages.Add(daySeparator(label))
 		cv.lastDay = label
+		cv.hasLast = false // separator breaks a sender run (MessageList.tsx:150)
 	}
 	if m.Info.ID != "" {
 		cv.rendered[m.Info.ID] = true
 	}
 	cv.messages.Add(cv.bubble(m))
+	cv.lastSenderID = senderRunID(m)
+	cv.hasLast = true
 }
 
 func (cv *ChatView) listenEvents(ctx context.Context) {
@@ -318,22 +324,34 @@ func (cv *ChatView) bubble(m store.DecodedMessage) fyne.CanvasObject {
 	}
 
 	inner := container.NewVBox(container.NewPadded(body), cv.metaRow(m, fromMe))
-	if isGroupJID(cv.jid) && !fromMe {
-		name := canvas.NewText(senderLabel(m), waGreen)
-		name.TextSize = 12
+	first := cv.firstInGroup(m)
+	if isGroupJID(cv.jid) && !fromMe && first {
+		col := profileColorNRGBA(m.Info.Sender)
+		name := canvas.NewText(senderLabel(m), col)
+		name.TextSize = 11
 		name.TextStyle = fyne.TextStyle{Bold: true}
 		inner = container.NewVBox(container.NewPadded(name), inner)
 	}
-	// MessageItem.tsx: stickers float with no bubble background.
+	return cv.wrapBubble(fromMe, first, content, inner)
+}
+
+// wrapBubble applies bubble background + corner and the 3px/12px/70px outer
+// margins (MessageItem.tsx:408-447).
+func cvWrapBubble(fromMe, first bool, content *store.DecodedMessageContent, inner fyne.CanvasObject) fyne.CanvasObject {
 	var stack fyne.CanvasObject = inner
 	if content == nil || content.StickerMessage == nil {
+		card := canvas.NewRectangle(bubbleBg(fromMe))
+		card.CornerRadius = bubbleCorner(fromMe, first)
 		stack = container.NewMax(card, inner)
 	}
-
 	if fromMe {
 		return container.NewBorder(spacer(1, 3), spacer(1, 3), spacer(70, 1), spacer(12, 1), stack)
 	}
 	return container.NewBorder(spacer(1, 3), spacer(1, 3), spacer(12, 1), spacer(70, 1), stack)
+}
+
+func (cv *ChatView) wrapBubble(fromMe, first bool, content *store.DecodedMessageContent, inner fyne.CanvasObject) fyne.CanvasObject {
+	return cvWrapBubble(fromMe, first, content, inner)
 }
 
 func (cv *ChatView) metaRow(m store.DecodedMessage, fromMe bool) fyne.CanvasObject {
@@ -360,20 +378,22 @@ func (cv *ChatView) textBlock(src string, maxW float32) fyne.CanvasObject {
 	if inner < 60 {
 		inner = 60
 	}
-	if strings.TrimSpace(htmlToText(src)) == "" {
+	plain := strings.TrimSpace(htmlToText(src))
+	if plain == "" {
 		return canvas.NewText(" ", waText)
+	}
+	// MessageItem.tsx:283 — emoji-only messages render at 32px (leading-10),
+	// no rich markup. Detected on the stripped plain text.
+	if emojiOnlyText(src) {
+		t := canvas.NewText(plain, waText)
+		t.TextSize = 32
+		return wrapFixed(t, minF(fyne.MeasureText(plain, 32, fyne.TextStyle{}).Width+4, inner), 40)
 	}
 	box, w, h := htmlTextBlock(src, inner, 14)
 	if w < 24 {
 		w = 24
 	}
-	// widget.RichText reports MinSize as text + 2*innerPadding on both axes and
-	// draws the text inset by that padding. Sizing the cell to the bare text
-	// width therefore made RichText wrap every line ~16px early, and using
-	// MinSize().Height left a blank band under the text. Size from the measured
-	// wrap instead and give back the padding it will consume.
-	pad := theme.Current().Size(theme.SizeNameInnerPadding)
-	return container.NewGridWrap(fyne.NewSize(minF(w+pad*2, inner), h+pad*2), box)
+	return container.NewGridWrap(fyne.NewSize(minF(w+16, inner), h+16), box)
 }
 
 func (cv *ChatView) mediaBlock(m store.DecodedMessage, kind int, maxW float32) fyne.CanvasObject {
@@ -667,4 +687,36 @@ func messageDayLabel(t time.Time) string {
 	default:
 		return tt.Format("02/01/2006")
 	}
+}
+
+// firstInGroup mirrors MessageList.tsx:156-160 — the previous row must come
+// from a different sender or side, and date separators break the run.
+func (cv *ChatView) firstInGroup(m store.DecodedMessage) bool {
+	if !cv.hasLast {
+		return true
+	}
+	return cv.lastSenderID != senderRunID(m)
+}
+
+func senderRunID(m store.DecodedMessage) string {
+	side := "r"
+	if m.Info.IsFromMe {
+		side = "s"
+	}
+	return side + "|" + m.Info.Sender
+}
+
+// profileColorNRGBA parses misc.GetProfileColor's "#RRGGBB" into NRGBA.
+func profileColorNRGBA(jid string) color.NRGBA {
+	h := misc.GetProfileColor(jid)
+	if len(h) == 7 && h[0] == '#' {
+		if r, err := strconv.ParseUint(h[1:3], 16, 8); err == nil {
+			if g, err := strconv.ParseUint(h[3:5], 16, 8); err == nil {
+				if b, err := strconv.ParseUint(h[5:7], 16, 8); err == nil {
+					return color.NRGBA{R: uint8(r), G: uint8(g), B: uint8(b), A: 255}
+				}
+			}
+		}
+	}
+	return waGreen
 }
