@@ -25,6 +25,7 @@ require (
 	git.sr.ht/~jackmordaunt/go-toast v1.1.2 // indirect
 	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
+	github.com/FyshOS/fancyfs v0.0.1 // indirect
 	github.com/anthonynsimon/bild v0.14.0 // indirect
 	github.com/beeper/argo-go v1.1.2 // indirect
 	github.com/bep/debounce v1.2.1 // indirect

@@ -23,8 +23,9 @@ type FyneApp struct {
 	state  *AppState
 	stack  *fyne.Container
 
-	sidebar *Sidebar
-	chatBox *fyne.Container
+	sidebar  *Sidebar
+	chatPane *fyne.Container
+	shell    fyne.CanvasObject
 }
 
 func New(a *api.Api) *FyneApp {
@@ -37,14 +38,14 @@ func New(a *api.Api) *FyneApp {
 		state:  &AppState{api: a, Screen: "login"},
 	}
 	fa.win = fa.app.NewWindow("WhatsApp")
-	fa.stack = container.NewStack(canvas.NewRectangle(waBg), widget.NewLabel("Loading..."))
+	fa.win.Resize(fyne.NewSize(1360, 860))
+	fa.stack = container.NewMax(canvas.NewRectangle(waBg), widget.NewLabel("Loading..."))
 	fa.win.SetContent(fa.stack)
-	fa.win.Resize(fyne.NewSize(1200, 760))
 	return fa
 }
 
 func (fa *FyneApp) ShowLogin() {
-	fa.state.Screen = "login"
+	fa.state.SetScreen("login")
 	login := NewLoginScreen(fa)
 	fyne.Do(func() {
 		fa.stack.Objects = []fyne.CanvasObject{login.Content()}
@@ -53,79 +54,165 @@ func (fa *FyneApp) ShowLogin() {
 }
 
 func (fa *FyneApp) OpenChat(jid string) {
-	fa.state.SelectedChatID = jid
+	if jid == "" {
+		return
+	}
+	fa.state.SetSelectedChatID(jid)
 	cv := NewChatView(fa, jid)
 	fyne.Do(func() {
-		if fa.chatBox == nil {
+		if fa.chatPane == nil {
 			return
 		}
-		fa.chatBox.Objects = []fyne.CanvasObject{cv.Content()}
-		fa.chatBox.Refresh()
+		fa.chatPane.Objects = []fyne.CanvasObject{cv.Content()}
+		fa.chatPane.Refresh()
 	})
 }
 
-func railBtn(icon string, badge int) fyne.CanvasObject {
-	lbl := canvas.NewText(icon, waMuted)
-	lbl.Alignment = fyne.TextAlignCenter
-	lbl.TextSize = 16
-	box := container.NewCenter(lbl)
-	if badge > 0 {
-		b := canvas.NewText(strconv.Itoa(badge), waWhite)
-		b.TextSize = 10
-		b.TextStyle = fyne.TextStyle{Bold: true}
-		bg := canvas.NewCircle(waGreen)
-		bg.Resize(fyne.NewSize(18, 18))
-		badgeObj := container.NewMax(bg, container.NewCenter(b))
-		box = container.NewMax(box, container.NewWithoutLayout(container.NewGridWrap(fyne.NewSize(18, 18), badgeObj)))
+func (fa *FyneApp) OpenEmptyChat() {
+	fa.state.SetSelectedChatID("")
+	fyne.Do(func() {
+		if fa.chatPane == nil {
+			return
+		}
+		fa.chatPane.Objects = []fyne.CanvasObject{fa.emptyPane()}
+		fa.chatPane.Refresh()
+	})
+}
+
+func railItem(label string, active bool, badge int) fyne.CanvasObject {
+	fg := waRailIcon
+	if active {
+		fg = waText
 	}
-	return container.NewPadded(box)
+	t := canvas.NewText(label, fg)
+	t.TextSize = 18
+	t.Alignment = fyne.TextAlignCenter
+	t.TextStyle = fyne.TextStyle{Bold: active}
+	cell := container.NewMax(canvas.NewRectangle(color.Transparent), container.NewCenter(t))
+	if active {
+		bg := canvas.NewRectangle(waRailSel)
+		bg.CornerRadius = 999
+		cell = container.NewMax(bg, container.NewCenter(t))
+	}
+	wrap := container.NewGridWrap(fyne.NewSize(40, 40), container.NewCenter(cell))
+	if badge > 0 {
+		btxt := strconv.Itoa(badge)
+		if badge > 99 {
+			btxt = "99+"
+		}
+		bt := canvas.NewText(btxt, waWhite)
+		bt.TextSize = 9
+		bt.TextStyle = fyne.TextStyle{Bold: true}
+		bbg := canvas.NewCircle(waGreen)
+		badgeObj := container.NewGridWrap(fyne.NewSize(18, 18), container.NewMax(bbg, container.NewCenter(bt)))
+		wrap = container.NewMax(wrap, container.NewWithoutLayout(badgeObj))
+	}
+	return wrap
+}
+
+func railAvatar() fyne.CanvasObject {
+	bg := canvas.NewCircle(waHover)
+	txt := canvas.NewText("•", waMuted)
+	txt.Alignment = fyne.TextAlignCenter
+	txt.TextSize = 16
+	return container.NewGridWrap(fyne.NewSize(32, 32), container.NewMax(bg, container.NewCenter(txt)))
+}
+
+func (fa *FyneApp) rail() fyne.CanvasObject {
+	railBg := canvas.NewRectangle(waRail)
+	top := container.NewVBox(
+		spacer(1, 10),
+		container.NewCenter(railItem("≡", false, 0)),
+		spacer(1, 4),
+		container.NewCenter(railItem("💬", true, 0)),
+		spacer(1, 4),
+		container.NewCenter(railItem("⭘", false, 0)),
+		spacer(1, 4),
+		container.NewCenter(railItem("◎", false, 0)),
+		spacer(1, 4),
+		container.NewCenter(railItem("👥", false, 0)),
+		spacer(1, 4),
+		container.NewCenter(railItem("🤖", false, 0)), // bot/morty slot compatible
+	)
+	bottom := container.NewVBox(
+		container.NewCenter(railItem("⚙", false, 0)),
+		spacer(1, 10),
+		container.NewCenter(railAvatar()),
+		spacer(1, 12),
+	)
+	rail := container.NewBorder(top, bottom, nil, nil, canvas.NewRectangle(color.Transparent))
+	return container.NewMax(railBg, container.NewGridWrap(fyne.NewSize(64, 0), rail))
 }
 
 func (fa *FyneApp) emptyPane() fyne.CanvasObject {
-	title := canvas.NewText("Download WhatsApp for Windows", waText)
-	title.TextSize = 22
+	bg := chatBackground(fyne.NewSize(0, 0))
+	logo := canvas.NewCircle(waPanel2)
+	logoTxt := canvas.NewText("WA", waAccent)
+	logoTxt.TextSize = 24
+	logoTxt.TextStyle = fyne.TextStyle{Bold: true}
+	logoTxt.Alignment = fyne.TextAlignCenter
+	logoObj := container.NewGridWrap(fyne.NewSize(84, 84), container.NewMax(logo, container.NewCenter(logoTxt)))
+
+	title := canvas.NewText("WhatsApp for Linux", waText)
+	title.TextSize = 32
 	title.Alignment = fyne.TextAlignCenter
-	desc := canvas.NewText("Make calls, share your screen and get a faster experience.", waMuted)
-	desc.TextSize = 13
+	desc := canvas.NewText("Send and receive messages without keeping your phone online.", waMuted)
+	desc.TextSize = 14
 	desc.Alignment = fyne.TextAlignCenter
-	btn := widget.NewButton("Download", func() {})
-	// style via importance not exact, ok
-	btn.Importance = widget.SuccessImportance
+	desc2 := canvas.NewText("Use WhatsApp on up to 4 linked devices and 1 phone.", waMuted)
+	desc2.TextSize = 14
+	desc2.Alignment = fyne.TextAlignCenter
+
+	download := widget.NewButton("Download", func() {})
+	download.Importance = widget.SuccessImportance
+
+	lock := canvas.NewText("🔒  Your personal messages are end-to-end encrypted", waMuted)
+	lock.TextSize = 13
+	lock.Alignment = fyne.TextAlignCenter
+
+	accent := canvas.NewRectangle(waAccent)
+	accent.SetMinSize(fyne.NewSize(0, 6))
+
 	content := container.NewVBox(
+		container.NewCenter(logoObj),
+		spacer(1, 24),
 		container.NewCenter(title),
-		container.NewGridWrap(fyne.NewSize(0, 8), canvas.NewRectangle(color.Transparent)),
+		spacer(1, 14),
 		container.NewCenter(desc),
-		container.NewGridWrap(fyne.NewSize(0, 18), canvas.NewRectangle(color.Transparent)),
-		container.NewCenter(container.NewGridWrap(fyne.NewSize(120, 36), btn)),
-		container.NewGridWrap(fyne.NewSize(0, 24), canvas.NewRectangle(color.Transparent)),
-		container.NewCenter(canvas.NewText("🔒 Your personal messages are end-to-end encrypted", waMuted)),
+		spacer(1, 4),
+		container.NewCenter(desc2),
+		spacer(1, 28),
+		container.NewCenter(container.NewGridWrap(fyne.NewSize(132, 38), download)),
+		spacer(1, 70),
+		container.NewCenter(lock),
 	)
-	return container.NewMax(canvas.NewRectangle(waPanel2), container.NewCenter(container.NewPadded(content)))
+	return container.NewBorder(nil, accent, nil, nil, container.NewMax(bg, container.NewCenter(container.NewPadded(content))))
 }
 
-func (fa *FyneApp) SwitchToChats() {
-	fa.state.Screen = "chats"
+func (fa *FyneApp) buildShell() {
 	if fa.sidebar == nil {
 		fa.sidebar = NewSidebar(fa)
 	} else {
-		fa.sidebar.Reload()
+		go fa.sidebar.Reload()
 	}
-	if fa.chatBox == nil {
-		fa.chatBox = container.NewStack(fa.emptyPane())
+	if fa.chatPane == nil {
+		fa.chatPane = container.NewMax(fa.emptyPane())
 	}
-	fyne.Do(func() {
-		railBg := canvas.NewRectangle(waRail)
-		rail := container.NewVBox(
-			container.NewGridWrap(fyne.NewSize(48, 12), canvas.NewRectangle(color.Transparent)),
-			railBtn("☰", 0), railBtn("💬", 0), railBtn("○", 0), railBtn("◎", 0), railBtn("⚙", 1),
-		)
-		railCol := container.NewMax(railBg, container.NewGridWrap(fyne.NewSize(52, 0), container.NewPadded(rail)))
 
-		left := container.NewMax(canvas.NewRectangle(waPanel), fa.sidebar.Content())
-		leftWrap := container.NewHBox(railCol, container.NewGridWrap(fyne.NewSize(360, 0), left))
-		split := container.NewHSplit(leftWrap, fa.chatBox)
-		split.Offset = 0.36
-		fa.stack.Objects = []fyne.CanvasObject{container.NewMax(canvas.NewRectangle(waBg), split)}
+	rail := fa.rail()
+	leftBody := container.NewMax(canvas.NewRectangle(waPanel), fa.sidebar.Content())
+	left := container.NewHBox(rail, verticalDivider(), container.New(&sidebarWidthLayout{width: 420}, leftBody))
+	right := container.NewMax(canvas.NewRectangle(waBg), fa.chatPane)
+
+	split := container.New(&mainSplitLayout{leftRatio: 0.34, minLeft: 460, minRight: 420}, left, right)
+	fa.shell = container.NewMax(canvas.NewRectangle(waBg), split)
+}
+
+func (fa *FyneApp) SwitchToChats() {
+	fa.state.SetScreen("chats")
+	fa.buildShell()
+	fyne.Do(func() {
+		fa.stack.Objects = []fyne.CanvasObject{fa.shell}
 		fa.stack.Refresh()
 	})
 }
@@ -137,3 +224,76 @@ func (fa *FyneApp) Run() {
 	fa.ShowLogin()
 	fa.win.ShowAndRun()
 }
+
+func verticalDivider() fyne.CanvasObject {
+	line := canvas.NewRectangle(waDivider)
+	line.SetMinSize(fyne.NewSize(1, 0))
+	return line
+}
+
+// sidebarWidthLayout forces sidebar body width while keeping rail natural.
+type sidebarWidthLayout struct {
+	width float32
+}
+
+func (l *sidebarWidthLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
+	h := float32(0)
+	for _, o := range objects {
+		if o.MinSize().Height > h {
+			h = o.MinSize().Height
+		}
+	}
+	w := l.width
+	if w <= 0 {
+		w = 420
+	}
+	return fyne.NewSize(w, h)
+}
+
+func (l *sidebarWidthLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
+	for _, o := range objects {
+		o.Resize(size)
+		o.Move(fyne.NewPos(0, 0))
+	}
+}
+
+// mainSplitLayout emulates WA desktop split (~30-35% left).
+type mainSplitLayout struct {
+	leftRatio float32
+	minLeft   float32
+	minRight  float32
+}
+
+func (l *mainSplitLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
+	return fyne.NewSize(l.minLeft+l.minRight, 600)
+}
+
+func (l *mainSplitLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
+	if len(objects) < 2 {
+		if len(objects) == 1 {
+			objects[0].Resize(size)
+			objects[0].Move(fyne.NewPos(0, 0))
+		}
+		return
+	}
+	r := l.leftRatio
+	if r <= 0 || r >= 1 {
+		r = 0.34
+	}
+	leftW := size.Width * r
+	if leftW < l.minLeft {
+		leftW = l.minLeft
+	}
+	if leftW > size.Width-l.minRight {
+		leftW = size.Width - l.minRight
+	}
+	if leftW < 0 {
+		leftW = 0
+	}
+	objects[0].Move(fyne.NewPos(0, 0))
+	objects[0].Resize(fyne.NewSize(leftW, size.Height))
+	objects[1].Move(fyne.NewPos(leftW, 0))
+	objects[1].Resize(fyne.NewSize(size.Width-leftW, size.Height))
+}
+
+var _ = color.Transparent

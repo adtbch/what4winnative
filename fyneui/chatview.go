@@ -245,7 +245,7 @@ func (cv *ChatView) sendMessage() {
 }
 
 func (cv *ChatView) Content() fyne.CanvasObject {
-	back := widget.NewButton("←", func() { cv.fa.state.SetSelectedChatID(""); fyne.Do(func(){ if cv.fa.chatBox != nil { cv.fa.chatBox.Objects = []fyne.CanvasObject{cv.fa.emptyPane()}; cv.fa.chatBox.Refresh() } }) })
+	back := widget.NewButton("←", func() { cv.fa.state.SetSelectedChatID(""); fyne.Do(func(){ if cv.fa.chatPane != nil { cv.fa.chatPane.Objects = []fyne.CanvasObject{cv.fa.emptyPane()}; cv.fa.chatPane.Refresh() } }) })
 	back.Importance = widget.LowImportance
 	avatar := container.NewGridWrap(fyne.NewSize(40, 40), container.NewMax(cv.avatarBg, container.NewCenter(cv.avatarTxt)))
 	nameCol := container.NewVBox(spacer(1, 2), cv.headerName, cv.headerSub)
