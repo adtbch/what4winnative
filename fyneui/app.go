@@ -50,11 +50,12 @@ func (fa *FyneApp) ShowLogin() {
 
 func (fa *FyneApp) OpenChat(jid string) {
 	fa.state.SelectedChatID = jid
+	cv := NewChatView(fa, jid)
 	fyne.Do(func() {
 		if fa.chatBox == nil {
 			return
 		}
-		fa.chatBox.Objects = []fyne.CanvasObject{container.NewCenter(widget.NewLabel("Chat: " + jid + " (WIP)"))}
+		fa.chatBox.Objects = []fyne.CanvasObject{cv.Content()}
 		fa.chatBox.Refresh()
 	})
 }
