@@ -1,3 +1,8 @@
+# what4winnative
+
+> Fork of [lugvitc/whats4linux](https://github.com/lugvitc/whats4linux) with custom modifications by [@ayb091](https://github.com/ayb091).  
+> Original licensed under the [GNU Affero General Public License v3.0](./LICENSE).
+
 <img width="1100" height="560" alt="gh-poster-chatscreen" src="https://github.com/user-attachments/assets/b9088f8b-b462-4aa5-b7a1-68cf03ad4211" />
 
 ![Downloads](https://img.shields.io/github/downloads/lugvitc/whats4linux/total?style=flat-square) ![Contributors](https://img.shields.io/github/contributors/lugvitc/whats4linux?color=dark-green&style=flat-square) ![Issues](https://img.shields.io/github/issues/lugvitc/whats4linux?style=flat-square) ![License](https://img.shields.io/badge/License-AGPL%20v3-blue.svg) [![CI](https://github.com/lugvitc/whats4linux/actions/workflows/format.yaml/badge.svg)](https://github.com/lugvitc/whats4linux/actions/workflows/format.yaml) [![Release](https://github.com/lugvitc/whats4linux/actions/workflows/build.yaml/badge.svg)](https://github.com/lugvitc/whats4linux/actions/workflows/build.yaml)
