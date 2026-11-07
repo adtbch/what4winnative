@@ -42,7 +42,7 @@ type Sidebar struct {
 	searchBox fyne.CanvasObject
 	archivedR fyne.CanvasObject
 	statusLbl *canvas.Text
-	selfAv    *canvas.Image
+	header    *sidebarHeader
 	rowRefs   map[fyne.CanvasObject]*chatRowRefs
 }
 
@@ -106,32 +106,8 @@ func NewSidebar(fa *FyneApp) *Sidebar {
 }
 
 func (s *Sidebar) topBar() fyne.CanvasObject {
-	title := canvas.NewText("WhatsApp", waText)
-	title.TextSize = 20
-	title.TextStyle = fyne.TextStyle{Bold: true}
-
-	newChat := newIconButton("sb-new", iconNewChat, 22, waMuted, func() {})
-	menu := newIconButton("sb-menu", iconMore, 22, waMuted, func() {})
-
-	s.selfAv = canvas.NewImageFromResource(nil)
-	s.selfAv.FillMode = canvas.ImageFillCover
-	s.selfAv.Hide()
-	selfBg := canvas.NewCircle(color.NRGBA{R: 0x37, G: 0x44, B: 0x4c, A: 255})
-	selfIcon := iconImage("sb-self", iconPerson, 18, waMuted)
-	selfWrap := container.NewGridWrap(fyne.NewSize(32, 32),
-		container.NewMax(selfBg, container.NewCenter(selfIcon), s.selfAv))
-
-	actions := container.NewHBox(newChat, menu, selfWrap)
-	row := container.NewBorder(nil, nil,
-		container.NewHBox(container.NewPadded(title)),
-		container.NewPadded(actions), nil)
-
-	bg := canvas.NewRectangle(waPanel)
-	bottom := canvas.NewRectangle(waDivider)
-	bottom.SetMinSize(fyne.NewSize(0, 1))
-	header := container.NewMax(bg, container.NewBorder(nil, bottom, nil, nil,
-		container.NewGridWrap(fyne.NewSize(0, 64), row)))
-	header.Resize(fyne.NewSize(0, 64))
+	s.header = newSidebarHeader(func() {}, func() {})
+	s.header.onMenu = func() {}
 
 	// tabs + search live below the header, like ChatScreen.tsx
 	s.tabs = newViewTabs(s.view, func(v string) {
@@ -145,7 +121,7 @@ func (s *Sidebar) topBar() fyne.CanvasObject {
 	s.searchBox = s.searchBar()
 	s.archivedR = s.archivedRow()
 
-	return container.NewVBox(header, s.tabs, s.searchBox, s.archivedR)
+	return container.NewVBox(s.header, s.tabs, s.searchBox, s.archivedR)
 }
 
 func (s *Sidebar) body() fyne.CanvasObject {
@@ -713,7 +689,7 @@ func (s *Sidebar) loadAvatar(jid string, recache bool) {
 
 func (s *Sidebar) loadSelfAvatar() {
 	url, err := s.fa.api.GetSelfAvatar(false)
-	if err != nil || url == "" || s.selfAv == nil {
+	if err != nil || url == "" || s.header == nil {
 		return
 	}
 	res := resourceFromDataURL("self-avatar", url)
@@ -721,9 +697,9 @@ func (s *Sidebar) loadSelfAvatar() {
 		return
 	}
 	fyne.Do(func() {
-		s.selfAv.Resource = res
-		s.selfAv.Show()
-		s.selfAv.Refresh()
+		if s.header != nil {
+			s.header.SetSelfAvatar(res)
+		}
 	})
 }
 

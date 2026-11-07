@@ -28,7 +28,9 @@ const iconSettings = `<path d="M19.4 13a7.7 7.7 0 0 0 0-2l2-1.6a.5.5 0 0 0 .1-.6
 
 const iconSearch = `<path d="M15.5 14h-.8l-.3-.3a6.5 6.5 0 1 0-.7.7l.3.3v.8l5 5 1.5-1.5-5-5zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/>`
 
-const iconNewChat = `<path d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6v-2z"/>`
+// iconNewChat is NewChatIcon from frontend/src/assets/svgs/chat_icons.tsx — a
+// chat bubble with two lines, not a plus sign.
+const iconNewChat = `<path d="M19.005 3.175H4.674C3.642 3.175 3 3.789 3 4.821V21.02l3.544-3.514h12.461c1.033 0 2.064-1.06 2.064-2.093V4.821c-.001-1.032-1.032-1.646-2.064-1.646zm-4.989 9.869H6.666V11.5h7.35v1.544zm3.35-4.135H6.666V7.36h10.7v1.55z"/>`
 
 const iconMore = `<path d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>`
 

@@ -171,6 +171,65 @@ function collect() {
     }
   }
 
+  // Sidebar header: h-16 row with "WhatsApp", two icon buttons, self avatar.
+  const h1 = document.querySelector("#root h1")
+  if (h1) {
+    const head = h1.parentElement as HTMLElement
+    const hr = head.getBoundingClientRect()
+    const hs = getComputedStyle(head)
+    const cs = getComputedStyle(h1)
+    const btns = Array.from(head.querySelectorAll("button"))
+    const av = head.querySelector("button ~ div") as HTMLElement | null
+    out.header = {
+      box: {
+        h: Math.round(hr.height),
+        w: Math.round(hr.width),
+        padding: hs.padding,
+        borderBottom: hs.borderBottomWidth + " " + hs.borderBottomColor,
+        justify: hs.justifyContent,
+        align: hs.alignItems,
+      },
+      title: {
+        text: (h1.textContent || "").trim(),
+        fontSize: cs.fontSize,
+        fontWeight: cs.fontWeight,
+        lineHeight: cs.lineHeight,
+        color: cs.color,
+      },
+      buttons: btns.map(b => {
+        const r = b.getBoundingClientRect()
+        const bs = getComputedStyle(b)
+        const svg = b.querySelector("svg")
+        const sr = svg?.getBoundingClientRect()
+        return {
+          title: b.getAttribute("title"),
+          x: Math.round(r.x),
+          y: Math.round(r.y),
+          w: Math.round(r.width),
+          h: Math.round(r.height),
+          padding: bs.padding,
+          radius: bs.borderRadius,
+          icon: sr ? Math.round(sr.width) : null,
+        }
+      }),
+      avatar: av
+        ? (() => {
+            const r = av.getBoundingClientRect()
+            const as = getComputedStyle(av)
+            return {
+              x: Math.round(r.x),
+              w: Math.round(r.width),
+              h: Math.round(r.height),
+              radius: as.borderRadius,
+              bg: as.backgroundColor,
+              marginLeft: as.marginLeft,
+            }
+          })()
+        : null,
+      gap: hs.gap,
+    }
+  }
+
   const pre = document.getElementById("metrics")
   if (pre) pre.textContent = JSON.stringify(out, null, 2)
   ;(window as unknown as { __PARITY__: unknown }).__PARITY__ = out
