@@ -122,7 +122,7 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
 
 - [ ] **T10 · Bubble teks — FIX BUG bubble kosong** ⚠️ prioritas
   - [ ] `newBubble(bubbleData{HTML,FromMe,Edited,Time,Sender,FirstInGroup,EmojiOnly,MaxWidth})` + `bubbleCorner()`
-  - [ ] **fix akar masalah:** tinggi bubble diambil dari return `htmlRichText`, **bukan** `box.MinSize()` (yang = 0)
+  - [x] **fix akar masalah (commit `0e11859`):** bukan `MinSize()==0`, tapi `widget.TextSegment.Style.Inline=false` — Fyne memecah paragraf di tiap segmen non-inline, jadi 1 kalimat jadi 1 kata per baris (tinggi 127px untuk 1 baris 19px). Plus `wrapRuns` mengukur kata tanpa spasi ekor (baris 532px terukur 559px), plus `textBlock` tidak menghitung `innerPadding` 8px di sel GridWrap
   - [ ] body kosong → italic "Empty Message"; emoji-only → 32px; sender label grup hanya saat `FirstInGroup`
   - [ ] meta `text-[11px] opacity-60`, tick `✓✓` biru `#53bdeb` kalau `FromMe`
   - [ ] background `waSent`/`waRecv`, corner 2px saat `FirstInGroup`
