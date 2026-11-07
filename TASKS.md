@@ -20,11 +20,11 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
 
 | Fase | Selesai | Total |
 |---|---|---|
-| 0 — Fondasi | 5 | 5 |
-| 1 — Sidebar | 0 | 5 |
-| 2 — Chat | 0 | 4 |
+| 0 — Fondasi | 3 | 3 |
+| 1 — Sidebar | 3 | 5 |
+| 2 — Chat | 0 | 5 |
 | 3 — Panel & layar | 0 | 2 |
-| **Total** | **5** | **15** |
+| **Total** | **6** | **15** |
 
 ---
 
@@ -77,13 +77,16 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
   - Catatan: `rect.height` React terbaca **57** karena scrollbar horizontal 15px (`overflow-x-auto`, 4 pill butuh 338px di ruang 295px); `clientHeight`/`scrollHeight` = **42** — pakai 42. Border Fyne butuh stroke **2px** karena stroke 1px jatuh di setengah pixel dan jadi 2 baris alpha 50%.
   - Spec: `ChatScreen.tsx:828-849` · File: `fyneui/view_tabs.go`
 
-- [ ] **T6 · Search bar**
-  - [ ] `newSearchBar(placeholder, onChange)` + `SetPlaceholder`
-  - [ ] luar `px-3 py-2`, dalam `rounded-full bg-[#242626] px-4 py-2`, ikon `mr-4`, input `text-sm`
-  - [ ] `TestSearchBarGolden` PASS · PNG `search_bar.png` diperiksa (pill penuh bulat, tanpa kotak Entry)
-  - [ ] `searchBar` lama dihapus, placeholder dinamis per view
-  - [ ] commit `feat(fyne): search bar component with golden test`
-  - Spec: `ChatScreen.tsx:84-95` · File: `fyneui/search_bar.go`
+- [x] **T6 · Search bar** — commit `4b2544f`
+  - [x] `newSearchBar(placeholder, onChange)` + `SetPlaceholder` + `SetText`
+  - [x] luar **52** (`px-3 py-2`), pill **36** `#242626` radius 18 (`rounded-full`), ikon **20** di `px-4`, gap **16** (`mr-4`), placeholder **14**
+  - [x] terukur: pill rows **8..43** cols **16..204** identik dengan React; ink teks Fyne rows 13..23 vs React 13..24
+  - [x] `widget.Entry` punya inset atas tetap ~12px → entry digeser `searchTextLift = -7` supaya ink duduk di tengah pill
+  - [x] `SetText` menekan echo `OnChanged` (input React controlled)
+  - [x] `TestSearchBarGeometryMatchesReact`, `TestSearchBarPillColour`, `TestSearchBarOnChangeAndSetText`, `TestSearchBarPlaceholderPerView` PASS · PNG `search_bar.png` + `_cmp_search.png`
+  - [x] `searchBar` lama dihapus, placeholder dinamis per view di `syncChrome`
+  - [x] **BUG**: `filterAndSortLocked` memakai `TrimSpace` dan ikut mencocokkan preview pesan; `useFilteredChatIds` (`useChatStore.ts:150-163`) hanya `lowercase(raw)` + `chat.name`. Diperbaiki + `TestSidebarSearchMatchesReact`
+  - Spec: `ChatScreen.tsx:841-855` · File: `fyneui/search_bar.go`
 
 - [ ] **T7 · Chat row** — 🟡 sebagian (geometri + teks + avatar terverifikasi)
   - [x] tinggi baris **72** = React (`stackedLayout{24,20}` gap 4, py-3) — `TestChatRowHeightMatchesReact`
