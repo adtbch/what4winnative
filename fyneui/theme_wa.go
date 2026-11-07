@@ -17,6 +17,7 @@ var (
 	waSent        = color.NRGBA{R: 0x14, G: 0x4d, B: 0x37, A: 255} // --color-sent-bubble-dark-bg
 	waRecv        = color.NRGBA{R: 0x24, G: 0x26, B: 0x26, A: 255} // --color-received-bubble-dark-bg
 	waText        = color.NRGBA{R: 0xe9, G: 0xed, B: 0xef, A: 255} // --color-dark-text
+	waAvatarIcon  = color.NRGBA{R: 0x11, G: 0x1b, B: 0x21, A: 255} // AVATAR_ICON_COLOR #111b21
 	waMuted       = color.NRGBA{R: 0x86, G: 0x96, B: 0xa0, A: 255} // --color-dark-muted
 	waTime        = color.NRGBA{R: 0x86, G: 0x96, B: 0xa0, A: 255}
 	waWhite       = color.NRGBA{R: 255, G: 255, B: 255, A: 255}

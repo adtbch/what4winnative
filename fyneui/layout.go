@@ -1,6 +1,7 @@
 package fyneui
 
 import (
+	"crypto/sha1"
 	"image/color"
 	"strings"
 
@@ -66,23 +67,150 @@ func spacer(w, h float32) fyne.CanvasObject {
 	return container.NewGridWrap(fyne.NewSize(w, h), canvas.NewRectangle(color.Transparent))
 }
 
-// avatarColor picks a deterministic fallback color for a JID, matching the
-// palette used by the React avatars.
+// avatarColorsLight / avatarColorsDark are the WhatsApp placeholder pastels,
+// copied verbatim from frontend/src/lib/utils.ts (AVATAR_COLORS_LIGHT/DARK).
+// Order is part of the contract: the index comes from a SHA-1 of the JID.
+var avatarColorsLight = []color.NRGBA{
+	{R: 0xE5, G: 0xCD, B: 0xB0, A: 255}, {R: 0xA8, G: 0xE0, B: 0xB8, A: 255},
+	{R: 0x7E, G: 0xC4, B: 0xE8, A: 255}, {R: 0xF0, G: 0xB4, B: 0xB4, A: 255},
+	{R: 0xC9, G: 0xB8, B: 0xE8, A: 255}, {R: 0xF5, G: 0xD0, B: 0x8A, A: 255},
+	{R: 0x9D, G: 0xD9, B: 0xD0, A: 255}, {R: 0xE8, G: 0xB8, B: 0xD0, A: 255},
+	{R: 0xB8, G: 0xD4, B: 0xA8, A: 255}, {R: 0xA8, G: 0xC8, B: 0xE8, A: 255},
+	{R: 0xE8, G: 0xC8, B: 0xA0, A: 255}, {R: 0xD0, G: 0xE8, B: 0xA8, A: 255},
+	{R: 0xD8, G: 0xB8, B: 0xE0, A: 255}, {R: 0xA8, G: 0xD8, B: 0xE8, A: 255},
+	{R: 0xE8, G: 0xD0, B: 0xB8, A: 255}, {R: 0xB8, G: 0xE0, B: 0xD0, A: 255},
+}
+
+var avatarColorsDark = []color.NRGBA{
+	{R: 0xC4, G: 0xA8, B: 0x82, A: 255}, {R: 0x6F, G: 0xB8, B: 0x8A, A: 255},
+	{R: 0x5A, G: 0x9E, B: 0xC4, A: 255}, {R: 0xC4, G: 0x7A, B: 0x7A, A: 255},
+	{R: 0x9A, G: 0x88, B: 0xC4, A: 255}, {R: 0xC4, G: 0xA8, B: 0x5A, A: 255},
+	{R: 0x6B, G: 0xB0, B: 0xA8, A: 255}, {R: 0xC4, G: 0x88, B: 0xA8, A: 255},
+	{R: 0x88, G: 0xB0, B: 0x78, A: 255}, {R: 0x78, G: 0x98, B: 0xC4, A: 255},
+	{R: 0xC4, G: 0xA8, B: 0x78, A: 255}, {R: 0xA0, G: 0xB8, B: 0x78, A: 255},
+	{R: 0xA8, G: 0x88, B: 0xB8, A: 255}, {R: 0x78, G: 0xB0, B: 0xC4, A: 255},
+	{R: 0xC4, G: 0xB0, B: 0x90, A: 255}, {R: 0x88, G: 0xB8, B: 0xA8, A: 255},
+}
+
+// avatarColor is the dark-theme variant (the Fyne UI only ships dark).
 func avatarColor(jid string) color.Color {
-	palette := []color.NRGBA{
-		{R: 0x00, G: 0xa8, B: 0x84, A: 255},
-		{R: 0x53, G: 0xbd, B: 0xeb, A: 255},
-		{R: 0xd4, G: 0x76, B: 0xe8, A: 255},
-		{R: 0xf7, G: 0x9c, B: 0x4c, A: 255},
-		{R: 0xe5, G: 0x42, B: 0xa3, A: 255},
-		{R: 0x06, G: 0xcf, B: 0x9c, A: 255},
-		{R: 0x7f, G: 0x66, B: 0xff, A: 255},
+	return avatarColorFor(jid, true)
+}
+
+// avatarColorFor mirrors getAvatarColor(jid, dark) from lib/utils.ts: SHA-1 of
+// the JID, first four bytes big-endian as uint32, modulo the palette length.
+func avatarColorFor(jid string, dark bool) color.Color {
+	palette := avatarColorsLight
+	if dark {
+		palette = avatarColorsDark
 	}
-	var h uint32
-	for _, c := range jid {
-		h = h*31 + uint32(c)
+	return palette[avatarColorIndex(jid, len(palette))]
+}
+
+// stackedLayout places children top-to-bottom at explicit heights separated by
+// a fixed gap. Use it where the React source sets line heights through Tailwind
+// classes, so the box height is deterministic instead of following whatever the
+// current font metrics happen to measure.
+type stackedLayout struct {
+	heights []float32
+	gap     float32
+}
+
+func (l *stackedLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
+	w := float32(0)
+	for _, o := range objects {
+		if m := o.MinSize().Width; m > w {
+			w = m
+		}
 	}
-	return palette[h%uint32(len(palette))]
+	h := float32(0)
+	for i := range objects {
+		h += l.heightAt(i)
+		if i > 0 {
+			h += l.gap
+		}
+	}
+	return fyne.NewSize(w, h)
+}
+
+func (l *stackedLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
+	y := float32(0)
+	for i, o := range objects {
+		if i > 0 {
+			y += l.gap
+		}
+		h := l.heightAt(i)
+		o.Move(fyne.NewPos(0, y))
+		o.Resize(fyne.NewSize(size.Width, h))
+		y += h
+	}
+}
+
+func (l *stackedLayout) heightAt(i int) float32 {
+	if i < len(l.heights) {
+		return l.heights[i]
+	}
+	return 0
+}
+
+// truncLabel is a single-line text that ellipsizes instead of overflowing.
+// canvas.Text never clips, so a long chat name draws straight over the
+// timestamp; React avoids this with `truncate`. The layout re-truncates the full
+// string every time the widget is resized, and Set keeps the source text.
+type truncLabel struct {
+	txt  *canvas.Text
+	full string
+}
+
+func newTruncLabel(textSize float32, col color.Color, bold bool) *truncLabel {
+	t := canvas.NewText("", col)
+	t.TextSize = textSize
+	t.TextStyle = fyne.TextStyle{Bold: bold}
+	return &truncLabel{txt: t}
+}
+
+func (l *truncLabel) Set(s string) {
+	l.full = s
+	l.txt.Text = s
+	l.txt.Refresh()
+}
+
+// obj is the canvas object to place in a container.
+func (l *truncLabel) obj() fyne.CanvasObject { return l.txt }
+
+// truncLayout drives one truncLabel.
+type truncLayout struct{ l *truncLabel }
+
+func (t *truncLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
+	if t.l.txt.Text == "" {
+		return fyne.NewSize(0, t.l.txt.MinSize().Height)
+	}
+	return t.l.txt.MinSize()
+}
+
+func (t *truncLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
+	for _, o := range objects {
+		o.Move(fyne.NewPos(0, 0))
+		o.Resize(size)
+	}
+	if t.l.full != "" {
+		clipped := truncateToWidth(t.l.full, size.Width, t.l.txt.TextSize)
+		if clipped != t.l.txt.Text {
+			t.l.txt.Text = clipped
+			t.l.txt.Refresh()
+		}
+	}
+}
+
+// avatarColorIndex reproduces colorIndex() from lib/utils.ts. An empty JID
+// yields 0 there, so it must yield 0 here too.
+func avatarColorIndex(jid string, n int) int {
+	if jid == "" || n == 0 {
+		return 0
+	}
+	sum := sha1.Sum([]byte(jid))
+	v := uint32(sum[0])<<24 | uint32(sum[1])<<16 | uint32(sum[2])<<8 | uint32(sum[3])
+	return int(v % uint32(n))
 }
 
 // initials is the single-letter fallback shown inside an avatar circle.

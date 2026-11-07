@@ -59,6 +59,13 @@ const iconPeople = `<path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0
 // svgResource wraps a path into a standalone SVG resource rendered at `size`
 // with a flat fill so Fyne does not need currentColor support.
 func svgResource(name, path string, size float32, c color.Color) fyne.Resource {
+	return svgResourceVB(name, path, size, 24, c)
+}
+
+// svgResourceVB is svgResource for paths authored in a non-24 unit viewBox.
+// React's contact avatar silhouette uses viewBox="0 0 48 48", so hardcoding a
+// /24 scale draws it at double size and clips it out of the frame entirely.
+func svgResourceVB(name, path string, size, viewBox float32, c color.Color) fyne.Resource {
 	r, g, b, a := c.RGBA()
 	hex := fmt.Sprintf("#%02x%02x%02x", r>>8, g>>8, b>>8)
 	op := float64(a) / 65535.0
@@ -66,12 +73,20 @@ func svgResource(name, path string, size float32, c color.Color) fyne.Resource {
 		op = 1
 	}
 	svg := strings.Join([]string{
-		fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %g %g" width="%g" height="%g">`, size, size, size, size),
-		fmt.Sprintf(`<g fill="%s" fill-opacity="%.3f" transform="scale(%g)">`, hex, op, size/24.0),
+		fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %g %g" width="%g" height="%g">`, viewBox, viewBox, size, size),
+		fmt.Sprintf(`<g fill="%s" fill-opacity="%.3f">`, hex, op),
 		path,
 		`</g></svg>`,
 	}, "")
 	return fyne.NewStaticResource(name, []byte(svg))
+}
+
+// iconImageVB renders a path authored in a viewBox-unit space at size px.
+func iconImageVB(name, path string, size, viewBox float32, c color.Color) fyne.CanvasObject {
+	img := canvas.NewImageFromResource(svgResourceVB(name, path, size, viewBox, c))
+	img.FillMode = canvas.ImageFillContain
+	img.SetMinSize(fyne.NewSize(size, size))
+	return img
 }
 
 // iconImage renders a path at size px tinted with c.

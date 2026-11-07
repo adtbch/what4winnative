@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>fyne-parity-harness</title>
+    <script>
+      // Wails runtime stub, installed BEFORE any module script runs so the real
+      // React components mount without a Go backend.
+      //
+      // Every backend call returns a promise that never settles: the harness
+      // seeds the zustand stores itself, so a resolving stub would overwrite
+      // the fixture (GetChatList would clear the rows, GetSettings would flip
+      // the theme back to its default).
+      ;(function () {
+        var pending = function () {
+          return new Promise(function () {})
+        }
+        var noop = function () {
+          return function () {}
+        }
+        window.go = { api: { Api: {} }, main: { App: {} } }
+        ;[
+          ["api", "Api"],
+          ["main", "App"],
+        ].forEach(function (pair) {
+          window.go[pair[0]][pair[1]] = new Proxy(
+            {},
+            {
+              get: function () {
+                return pending
+              },
+            },
+          )
+        })
+        window.runtime = new Proxy(
+          {
+            EventsOn: noop,
+            EventsOnMultiple: noop,
+            EventsOff: function () {},
+            EventsEmit: function () {},
+            BrowserOpenURL: function () {},
+            WindowSetTitle: function () {},
+            WindowSetBackgroundColour: function () {},
+            Quit: function () {},
+          },
+          {
+            get: function (t, k) {
+              if (k in t) return t[k]
+              return function () {}
+            },
+          },
+        )
+        window.__HARNESS_ERRORS__ = []
+        window.addEventListener("error", function (e) {
+          window.__HARNESS_ERRORS__.push(String(e.message))
+        })
+        window.addEventListener("unhandledrejection", function (e) {
+          window.__HARNESS_ERRORS__.push("rejection: " + String(e.reason))
+        })
+        var origError = console.error
+        console.error = function () {
+          window.__HARNESS_ERRORS__.push(Array.prototype.join.call(arguments, " "))
+          origError.apply(console, arguments)
+        }
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <pre id="metrics" style="display:none"></pre>
+    <script type="module" src="/src/harness.tsx"></script>
+  </body>
+</html>

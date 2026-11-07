@@ -49,9 +49,9 @@ type Sidebar struct {
 type chatRowRefs struct {
 	jid       string
 	hover     *canvas.Rectangle
-	name      *canvas.Text
+	name      *truncLabel
 	time      *canvas.Text
-	preview   *canvas.Text
+	preview   *truncLabel
 	badgeBg   *canvas.Rectangle
 	badgeTxt  *canvas.Text
 	badgeWrap fyne.CanvasObject
@@ -59,6 +59,8 @@ type chatRowRefs struct {
 	avatarBg  *canvas.Circle
 	avatarImg *canvas.Image
 	avatarTxt *canvas.Text
+	avPerson  fyne.CanvasObject
+	avPeople  fyne.CanvasObject
 	catcher   *rowCatcher
 }
 
@@ -253,23 +255,33 @@ func (s *Sidebar) newRow() fyne.CanvasObject {
 	avatarImg := canvas.NewImageFromResource(nil)
 	avatarImg.FillMode = canvas.ImageFillCover
 	avatarImg.Hide()
+	// React swaps the fallback avatar contents by chat type: a "people" glyph for
+	// groups, a person silhouette for contacts (ChatScreen.tsx MemoizedChatAvatar).
 	avatarTxt := canvas.NewText("?", waText)
 	avatarTxt.Alignment = fyne.TextAlignCenter
 	avatarTxt.TextSize = 18
 	avatarTxt.TextStyle = fyne.TextStyle{Bold: true}
-	avatarInner := container.NewMax(avatarBg, avatarImg, container.NewCenter(avatarTxt))
+	avatarPerson := iconImageVB("row-av-person", iconPerson, 36, 48, waAvatarIcon)
+	avatarPeople := iconImage("row-av-people", iconPeople, 26, waAvatarIcon)
+	avatarPerson.Hide()
+	avatarPeople.Hide()
+	avatarInner := container.NewMax(avatarBg, avatarImg,
+		container.NewCenter(avatarTxt),
+		container.NewCenter(avatarPerson),
+		container.NewCenter(avatarPeople))
 	avatar := container.NewGridWrap(fyne.NewSize(48, 48), avatarInner)
 
-	name := canvas.NewText("", waText)
-	name.TextSize = 15
+	// Name and preview must ellipsize, not overflow: canvas.Text never clips, so
+	// a long name draws straight over the timestamp. React gets this from
+	// `truncate` (overflow hidden + text-overflow ellipsis).
+	name := newTruncLabel(16, waText, true)
 	timeTxt := canvas.NewText("", waMuted)
 	timeTxt.TextSize = 12
 	timeTxt.Alignment = fyne.TextAlignTrailing
 	topRow := container.NewBorder(nil, nil, nil,
-		container.NewHBox(timeTxt), name)
+		container.NewHBox(timeTxt), container.New(&truncLayout{l: name}, name.obj()))
 
-	preview := canvas.NewText("", waMuted)
-	preview.TextSize = 13
+	preview := newTruncLabel(14, waMuted, false)
 
 	badgeTxt := canvas.NewText("", waBadgeText)
 	badgeTxt.TextSize = 11
@@ -285,9 +297,12 @@ func (s *Sidebar) newRow() fyne.CanvasObject {
 	pin.Hide()
 
 	right := container.NewHBox(pin, badgeWrap)
-	bottomRow := container.NewBorder(nil, nil, nil, right, preview)
+	bottomRow := container.NewBorder(nil, nil, nil, right, container.New(&truncLayout{l: preview}, preview.obj()))
 
-	mid := container.NewVBox(spacer(0, 3), topRow, spacer(0, 2), bottomRow)
+	// React: `flex justify-between items-baseline mb-1` over a `text-sm` row.
+	// 24px (name line) + 4px (mb-1) + 20px (preview line) = 48px, the same as
+	// the avatar, which is why the row is exactly 72px with py-3.
+	mid := container.New(&stackedLayout{heights: []float32{24, 20}, gap: 4}, topRow, bottomRow)
 
 	// px-4 py-3 + avatar mr-4
 	body := container.NewBorder(nil, nil,
@@ -329,7 +344,8 @@ func (s *Sidebar) newRow() fyne.CanvasObject {
 	s.rowRefs[sized] = &chatRowRefs{
 		hover: hover, name: name, time: timeTxt, preview: preview,
 		badgeBg: badgeBg, badgeTxt: badgeTxt, badgeWrap: badgeWrap, pin: pin,
-		avatarBg: avatarBg, avatarImg: avatarImg, avatarTxt: avatarTxt, catcher: catcher,
+		avatarBg: avatarBg, avatarImg: avatarImg, avatarTxt: avatarTxt,
+		avPerson: avatarPerson, avPeople: avatarPeople, catcher: catcher,
 	}
 	return sized
 }
@@ -351,12 +367,9 @@ func (s *Sidebar) updateRow(id widget.ListItemID, obj fyne.CanvasObject) {
 	s.mu.RUnlock()
 	refs.jid = c.JID
 
-	refs.name.Text = chatDisplayName(c)
-	refs.name.Refresh()
+	refs.name.Set(chatDisplayName(c))
 
-	prev := chatPreviewText(c)
-	refs.preview.Text = prev
-	refs.preview.Refresh()
+	refs.preview.Set(chatPreviewText(c))
 
 	refs.time.Text = formatChatTimestamp(c.LatestTS)
 	if unread > 0 {
@@ -392,9 +405,16 @@ func (s *Sidebar) updateRow(id widget.ListItemID, obj fyne.CanvasObject) {
 		refs.avatarTxt.Hide()
 	} else {
 		refs.avatarImg.Hide()
-		refs.avatarTxt.Text = initials(chatDisplayName(c))
-		refs.avatarTxt.Refresh()
-		refs.avatarTxt.Show()
+		// React shows a glyph, never initials: "people" for groups, a person
+		// silhouette for contacts. initials() is only a last-resort fallback.
+		refs.avatarTxt.Hide()
+		if isGroupJID(c.JID) {
+			refs.avPeople.Show()
+			refs.avPerson.Hide()
+		} else {
+			refs.avPerson.Show()
+			refs.avPeople.Hide()
+		}
 	}
 }
 

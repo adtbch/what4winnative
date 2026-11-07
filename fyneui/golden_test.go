@@ -192,3 +192,28 @@ func TestAvatarHelpers(t *testing.T) {
 		t.Fatalf("initials(empty) = %q, want ?", got)
 	}
 }
+
+// TestAvatarColorMatchesReact pins the palette index against values computed
+// from the real frontend (frontend/src/lib/utils.ts getAvatarColor) with node's
+// crypto SHA-1. If either side changes its hash or palette order, this fails.
+func TestAvatarColorMatchesReact(t *testing.T) {
+	cases := []struct {
+		jid         string
+		light, dark color.NRGBA
+	}{
+		{"6282134544728@s.whatsapp.net", color.NRGBA{R: 0xA8, G: 0xE0, B: 0xB8, A: 255}, color.NRGBA{R: 0x6F, G: 0xB8, B: 0x8A, A: 255}},
+		{"120363999999999999@g.us", color.NRGBA{R: 0xA8, G: 0xC8, B: 0xE8, A: 255}, color.NRGBA{R: 0x78, G: 0x98, B: 0xC4, A: 255}},
+		{"628999888777@s.whatsapp.net", color.NRGBA{R: 0x9D, G: 0xD9, B: 0xD0, A: 255}, color.NRGBA{R: 0x6B, G: 0xB0, B: 0xA8, A: 255}},
+	}
+	for _, c := range cases {
+		if got := avatarColorFor(c.jid, false); got != c.light {
+			t.Errorf("light %s = %v, want %v", c.jid, got, c.light)
+		}
+		if got := avatarColorFor(c.jid, true); got != c.dark {
+			t.Errorf("dark %s = %v, want %v", c.jid, got, c.dark)
+		}
+	}
+	if got := avatarColorFor("", true); got != avatarColorsDark[0] {
+		t.Errorf("empty jid = %v, want palette[0]", got)
+	}
+}
