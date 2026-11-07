@@ -63,7 +63,8 @@ type Api struct {
 
 func (a *Api) emitEvent(name string, data any) {
 	if a.ctx != nil {
-		runtime.EventsEmit(a.ctx,  name, data)
+		defer func() { recover() }()
+		runtime.EventsEmit(a.ctx, name, data)
 	}
 	eventbus.Default.Publish(name, data)
 }
@@ -320,9 +321,12 @@ func (a *Api) Startup(ctx context.Context) {
 		}
 	}()
 
-	err = misc.StartSystray()
-	if err != nil {
-		log.Printf("failed to start systray: %v", err)
+	// Skip tray for non-Wails/Fyne contexts where tray binary may not exist
+	if runtime.Environment(a.ctx).Platform != "" {
+		err = misc.StartSystray()
+		if err != nil {
+			log.Printf("failed to start systray: %v", err)
+		}
 	}
 
 	dbLog := waLog.Stdout("Database", settings.GetLogLevel(), true)
