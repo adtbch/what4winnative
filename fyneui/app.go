@@ -79,7 +79,8 @@ func (fa *FyneApp) SwitchToChats() {
 
 func (fa *FyneApp) Run() {
 	defer fa.cancel()
-	go func() { fa.api.Startup(fa.ctx) }()
+	ctx := context.WithValue(fa.ctx, "ui_mode", "fyne")
+	go func() { fa.api.Startup(ctx) }()
 	fa.ShowLogin()
 	fa.win.ShowAndRun()
 }

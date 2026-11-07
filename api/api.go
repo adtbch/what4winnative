@@ -63,8 +63,10 @@ type Api struct {
 
 func (a *Api) emitEvent(name string, data any) {
 	if a.ctx != nil {
-		defer func() { recover() }()
-		runtime.EventsEmit(a.ctx, name, data)
+		if v, _ := a.ctx.Value("ui_mode").(string); v != "fyne" {
+			defer func() { recover() }()
+			runtime.EventsEmit(a.ctx, name, data)
+		}
 	}
 	eventbus.Default.Publish(name, data)
 }
@@ -321,10 +323,9 @@ func (a *Api) Startup(ctx context.Context) {
 		}
 	}()
 
-	// Skip tray for non-Wails/Fyne contexts where tray binary may not exist
-	if runtime.Environment(a.ctx).Platform != "" {
-		err = misc.StartSystray()
-		if err != nil {
+	// Skip tray for Fyne/non-Wails contexts
+	if v, _ := ctx.Value("ui_mode").(string); v != "fyne" {
+		if err = misc.StartSystray(); err != nil {
 			log.Printf("failed to start systray: %v", err)
 		}
 	}
