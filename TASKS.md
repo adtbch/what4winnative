@@ -16,18 +16,26 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
 
 ## Progress
 
-**0 / 14 task selesai** — 0 / 26 komponen terverifikasi.
+**1 / 14 task selesai** — 0 / 26 komponen terverifikasi.
+
+| Fase | Selesai | Total |
+|---|---|---|
+| 0 — Fondasi | 1 | 3 |
+| 1 — Sidebar | 0 | 6 |
+| 2 — Chat | 0 | 4 |
+| 3 — Panel & layar | 0 | 2 |
+| **Total** | **1** | **15** |
 
 ---
 
 ## Fase 0 — Fondasi
 
-- [ ] **T1 · Baseline build + token warna**
-  - [ ] `go build ./...` bersih (fix import mati `cmd/run.go:15` `options/windows`)
-  - [ ] `.gitignore`: `/fyne_test.exe`, `/fyne.exe`, `/nul`, `fyneui/testdata/out/*.png`
-  - [ ] hapus `fyneui/*.bak`, `fyne_test.exe`, `fyne.exe`, `nul`
-  - [ ] `go test ./fyneui/` PASS
-  - [ ] commit `chore(fyne): baseline before component-by-component parity pass`
+- [x] **T1 · Baseline build + token warna**
+  - [x] `go build ./...` bersih (fix import mati `cmd/run.go:15` `options/windows`)
+  - [x] `.gitignore`: `/fyne_test.exe`, `/fyne.exe`, `/nul`, `fyneui/testdata/out/*.png`
+  - [x] hapus `fyneui/*.bak`, `fyne_test.exe`, `fyne.exe`, `nul`
+  - [x] `go test ./fyneui/` PASS
+  - [x] commit `0984f12` — `chore(fyne): baseline before component-by-component parity pass`
   - Spec: `frontend/src/style.css` `@theme` · File: `fyneui/theme_wa.go`
 
 - [ ] **T2 · Harness render PNG + helper bersama**
