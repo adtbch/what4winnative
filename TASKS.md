@@ -16,11 +16,11 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
 
 ## Progress
 
-**3 / 15 task selesai** — 0 / 26 komponen terverifikasi.
+**4 / 15 task selesai** — 0 / 26 komponen terverifikasi.
 
 | Fase | Selesai | Total |
 |---|---|---|
-| 0 — Fondasi | 3 | 3 |
+| 0 — Fondasi | 4 | 4 |
 | 1 — Sidebar | 0 | 6 |
 | 2 — Chat | 0 | 4 |
 | 3 — Panel & layar | 0 | 2 |
@@ -67,12 +67,13 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
   - [ ] commit `feat(fyne): sidebar header component with golden test`
   - Spec: `ChatScreen.tsx:50-70` · File: `fyneui/sidebar_header.go`
 
-- [ ] **T5 · View tabs (chats/communities/channels/status)**
-  - [ ] `newViewTabs(current, onChange)` + `SetCurrent` (tidak memicu `onChange`)
-  - [ ] pill `rounded-full px-3 py-1 text-sm capitalize`; aktif `bg-[#e9edef] text-[#0b141a]`, idle `border-white/10 text-[#8696a0]`
-  - [ ] `TestViewTabsGolden` PASS · PNG `view_tabs.png` diperiksa
-  - [ ] `tabPill`/`rebuildTabs` lama dihapus; search bar tetap disembunyikan saat `view == "status"`
-  - [ ] commit `feat(fyne): view tabs component with golden test`
+- [x] **T5 · View tabs (chats/communities/channels/status)** — commit `04cfcd1`
+  - [x] `newViewTabs(current, onChange)` + `SetCurrent` (tidak memicu `onChange`); tap pill aktif = no-op
+  - [x] pill `rounded-full px-3 py-1 text-sm capitalize`; aktif `bg-[#e9edef] text-[#0b141a]`, idle `border-white/10 text-[#8696a0]`
+  - [x] geometri **terukur** dari `getBoundingClientRect()`: pill h **30**, padding **4px 12px**, gap **8**, bar `pt-1 px-3 pb-2` = h **42**, font **14**
+  - [x] `TestViewTabsGeometryMatchesReact` (h 30, lebar ±6, bar 42), `TestViewTabsCapitalize`, `TestViewTabsSetCurrentDoesNotFireOnChange`, `TestViewTabsTapActiveIsNoop`, `TestViewTabsGolden` PASS · PNG `view_tabs.png` diperiksa
+  - [x] `tabPill`/`rebuildTabs` lama dihapus; search bar tetap disembunyikan saat `view == "status"`
+  - Catatan: `rect.height` React terbaca **57** karena scrollbar horizontal 15px (`overflow-x-auto`, 4 pill butuh 338px di ruang 295px); `clientHeight`/`scrollHeight` = **42** — pakai 42. Border Fyne butuh stroke **2px** karena stroke 1px jatuh di setengah pixel dan jadi 2 baris alpha 50%.
   - Spec: `ChatScreen.tsx:828-849` · File: `fyneui/view_tabs.go`
 
 - [ ] **T6 · Search bar**
