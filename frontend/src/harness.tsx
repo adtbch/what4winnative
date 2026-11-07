@@ -16,6 +16,19 @@ const params = new URLSearchParams(location.search)
 const scene = params.get("scene") || "chatrow"
 const theme = (params.get("theme") || "dark") as "light" | "dark"
 
+// ARCHIVED adds one archived chat so the "Archived" entry row renders; the
+// empty scene drops every chat so EmptyState renders.
+const FIXTURE_ARCHIVED: ChatItem[] = [
+  {
+    id: "628111222333@s.whatsapp.net",
+    name: "Grup Lama",
+    subtitle: "udah selesai",
+    type: "group",
+    timestamp: 1762000000,
+    archived: true,
+  },
+]
+
 const FIXTURE: ChatItem[] = [
   {
     id: "6282134544728@s.whatsapp.net",
@@ -46,7 +59,9 @@ const FIXTURE: ChatItem[] = [
 
 applyThemeClass(theme)
 useAppSettingsStore.setState({ theme, loaded: true })
-useChatStore.getState().setChats(FIXTURE)
+useChatStore.getState().setChats(
+  scene === "empty" ? [] : scene === "archived" ? [...FIXTURE, ...FIXTURE_ARCHIVED] : FIXTURE,
+)
 
 function Scenes() {
   if (scene === "chatrow") return <ChatListScreen onOpenSettings={() => {}} />
@@ -318,6 +333,113 @@ function collect() {
       badge: b ? info(b) : null,
     })
   })
+
+  // Archived entry: the only button in the list area whose label is "Archived".
+  const archBtn = Array.from(
+    document.querySelectorAll("#root button"),
+  ).find(b => (b.textContent || "").trim().startsWith("Archived")) as HTMLElement | undefined
+  if (archBtn) {
+    const r = archBtn.getBoundingClientRect()
+    const cs = getComputedStyle(archBtn)
+    const icon = archBtn.querySelector("svg")
+    const ir = icon?.getBoundingClientRect()
+    const label = Array.from(archBtn.querySelectorAll("span")).find(
+      el => (el.textContent || "").trim() === "Archived",
+    ) as HTMLElement | undefined
+    const count = archBtn.lastElementChild as HTMLElement | null
+    const ls = label ? getComputedStyle(label) : null
+    const ccs = count ? getComputedStyle(count) : null
+    out.archived = {
+      box: {
+        x: Math.round(r.x),
+        y: Math.round(r.y),
+        w: Math.round(r.width),
+        h: Math.round(r.height),
+        padding: cs.padding,
+        gap: cs.gap,
+      },
+      icon: icon
+        ? {
+            x: Math.round(ir!.x - r.x),
+            y: Math.round(ir!.y - r.y),
+            w: Math.round(ir!.width),
+            h: Math.round(ir!.height),
+            color: getComputedStyle(icon!).color,
+          }
+        : null,
+      label: ls
+        ? { fontSize: ls.fontSize, fontWeight: ls.fontWeight, color: ls.color }
+        : null,
+      count: ccs
+        ? {
+            text: (count!.textContent || "").trim(),
+            x: Math.round(count!.getBoundingClientRect().x - r.x),
+            fontSize: ccs.fontSize,
+            color: ccs.color,
+          }
+        : null,
+    }
+  }
+
+  // Empty state: centered column with a 120px chat glyph, the message, and the
+  // refresh button.
+  const emptyP = Array.from(document.querySelectorAll("#root p")).find(p =>
+    /No chats/i.test(p.textContent || ""),
+  ) as HTMLElement | undefined
+  if (emptyP) {
+    const wrap = emptyP.parentElement as HTMLElement
+    const wr = wrap.getBoundingClientRect()
+    const ws = getComputedStyle(wrap)
+    const pr = emptyP.getBoundingClientRect()
+    const ps = getComputedStyle(emptyP)
+    const btn = wrap.querySelector("button") as HTMLElement | null
+    const br = btn?.getBoundingClientRect()
+    const bs = btn ? getComputedStyle(btn) : null
+    const svg = wrap.querySelector("svg")
+    out.empty = {
+      box: {
+        x: Math.round(wr.x),
+        y: Math.round(wr.y),
+        w: Math.round(wr.width),
+        h: Math.round(wr.height),
+        padding: ws.padding,
+        align: ws.alignItems,
+        justify: ws.justifyContent,
+      },
+      text: {
+        text: (emptyP.textContent || "").trim(),
+        fontSize: ps.fontSize,
+        lineHeight: ps.lineHeight,
+        color: ps.color,
+        x: Math.round(pr.x),
+        y: Math.round(pr.y),
+        w: Math.round(pr.width),
+        h: Math.round(pr.height),
+      },
+      button: bs
+        ? {
+            text: (btn!.textContent || "").trim(),
+            x: Math.round(br!.x),
+            y: Math.round(br!.y),
+            w: Math.round(br!.width),
+            h: Math.round(br!.height),
+            padding: bs.padding,
+            radius: bs.borderRadius,
+            bg: bs.backgroundColor,
+            color: bs.color,
+            fontSize: bs.fontSize,
+            fontWeight: bs.fontWeight,
+            marginTop: bs.marginTop,
+          }
+        : null,
+      icon: svg
+        ? {
+            w: Math.round(svg.getBoundingClientRect().width),
+            color: getComputedStyle(svg).color,
+          }
+        : null,
+    }
+  }
 
   const pre = document.getElementById("metrics")
   if (pre) pre.textContent = JSON.stringify(out, null, 2)

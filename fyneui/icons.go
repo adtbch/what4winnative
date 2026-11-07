@@ -44,6 +44,12 @@ const iconSend = `<path d="M2 21 23 12 2 3v7l15 2-15 2v7z"/>`
 
 const iconPin = `<path d="M16 3a1 1 0 0 1 .95 1.31l-.9 2.72 3.42 3.42a1 1 0 0 1-.21 1.57l-3.62 2.07-1.9 4.75a1 1 0 0 1-1.64.33L9 16.07l-4.29 4.3-1.42-1.42 4.3-4.29-3.1-3.1a1 1 0 0 1 .33-1.64l4.75-1.9 2.07-3.62A1 1 0 0 1 12.5 4z"/>`
 
+// iconArchive is the Material "archive" glyph from ChatScreen.tsx:865.
+const iconArchive = `<path d="M20.54 5.23 19.15 3.55A1.5 1.5 0 0 0 18 3H6a1.5 1.5 0 0 0-1.16.55L3.46 5.23A2 2 0 0 0 3 6.5V19a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6.5a2 2 0 0 0-.46-1.27ZM6.24 5h11.52l.81.97H5.44ZM5 19V8h14v11Zm8-5.5V11h-2v2.5H8.5L12 17l3.5-3.5Z"/>`
+
+// iconChatBubble is EmptyStateIcon from chat_icons.tsx (120px in React).
+const iconChatBubble = `<path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>`
+
 const iconMuted = `<path d="M20 18.7 7.8 6.1 5.3 3.5 4 4.8l2.8 2.8c-.5 1-.8 2.2-.8 3.4v5l-2 2v1h13.7l2 2L21 19.7l-1-1zM12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-7.3V11c0-3.1-1.6-5.6-4.5-6.3V4a1.5 1.5 0 0 0-3 0v.7c-.2 0-.3.1-.4.1L18 14.7z"/>`
 
 const iconPhoto = `<path d="M21 5H3a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zm-1 12H4l4.5-6 3 3.8L14 11l6 6z"/>`

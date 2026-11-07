@@ -41,6 +41,9 @@ type Sidebar struct {
 	tabs      *viewTabs
 	searchBox *searchBar
 	archivedR fyne.CanvasObject
+	archivedE *archivedEntry
+	archivedH *archivedHeader
+	emptyS    *emptyState
 	statusLbl *canvas.Text
 	header    *sidebarHeader
 	rowRefs   map[fyne.CanvasObject]*chatRowRefs
@@ -139,8 +142,16 @@ func (s *Sidebar) topBar() fyne.CanvasObject {
 		s.refreshVisible()
 	})
 	s.archivedR = s.archivedRow()
+	s.archivedH = newArchivedHeader(func() {
+		s.mu.Lock()
+		s.archived = false
+		s.mu.Unlock()
+		s.refreshVisible()
+		s.syncChrome()
+	})
+	s.archivedH.Hide()
 
-	return container.NewVBox(s.header, s.tabs, s.searchBox, s.archivedR)
+	return container.NewVBox(s.header, s.tabs, s.searchBox, s.archivedR, s.archivedH)
 }
 
 func (s *Sidebar) body() fyne.CanvasObject {
@@ -148,7 +159,14 @@ func (s *Sidebar) body() fyne.CanvasObject {
 	s.statusLbl.TextSize = 12
 	s.statusLbl.Alignment = fyne.TextAlignCenter
 	placeholder := container.NewCenter(container.NewPadded(s.statusLbl))
-	return container.NewMax(s.list, placeholder)
+	placeholder.Hide()
+
+	// EmptyState (ChatScreen.tsx:361-374) replaces the whole list when the
+	// filtered set is empty; status/communities/channels keep their own label.
+	s.emptyS = newSidebarEmptyState(false, func() { _, _ = s.fetchChats() })
+	s.emptyS.Hide()
+
+	return container.NewMax(s.list, placeholder, s.emptyS)
 }
 
 // searchPlaceholder mirrors the ternary chain in ChatScreen.tsx:847-854.
@@ -162,13 +180,24 @@ func searchPlaceholder(view string) string {
 	return "Search or start new chat"
 }
 
+// archivedRow is the "Archived" entry above the list (ChatScreen.tsx:859-875).
+// It only shows for view=chats, when not already inside the archive, and when
+// at least one chat is archived.
 func (s *Sidebar) archivedRow() fyne.CanvasObject {
-	return container.NewVBox()
+	s.archivedE = newArchivedEntry(0, func() {
+		s.mu.Lock()
+		s.archived = true
+		s.mu.Unlock()
+		s.refreshVisible()
+		s.syncChrome()
+	})
+	s.archivedE.Hide()
+	return s.archivedE
 }
 
 // syncChrome hides the search bar for the status tab, like ChatScreen.tsx.
 func (s *Sidebar) syncChrome() {
-	s.mu.RLock()
+	s.mu.Lock()
 	view := s.view
 	archivedCount := 0
 	for _, c := range s.allChats {
@@ -176,8 +205,12 @@ func (s *Sidebar) syncChrome() {
 			archivedCount++
 		}
 	}
+	// ChatScreen.tsx:593 — an emptied archive falls back to the main list.
+	if s.archived && archivedCount == 0 {
+		s.archived = false
+	}
 	showArchived := s.archived
-	s.mu.RUnlock()
+	s.mu.Unlock()
 
 	fyne.Do(func() {
 		if s.searchBox != nil {
@@ -188,11 +221,22 @@ func (s *Sidebar) syncChrome() {
 				s.searchBox.Show()
 			}
 		}
-		if s.archivedR != nil {
+		if s.archivedE != nil {
+			s.archivedE.SetCount(archivedCount)
 			if view == "chats" && archivedCount > 0 && !showArchived {
-				s.archivedR.Show()
+				s.archivedE.Show()
 			} else {
-				s.archivedR.Hide()
+				s.archivedE.Hide()
+			}
+		}
+		// The archive view swaps the entry for a back header
+		// (ChatScreen.tsx:876-887); an empty archive drops back to chats
+		// (`if (showArchived && archivedCount === 0) setShowArchived(false)`).
+		if s.archivedH != nil {
+			if view == "chats" && showArchived && archivedCount > 0 {
+				s.archivedH.Show()
+			} else {
+				s.archivedH.Hide()
 			}
 		}
 		if s.statusLbl != nil {
@@ -207,6 +251,13 @@ func (s *Sidebar) syncChrome() {
 				s.statusLbl.Text = "No status updates"
 			}
 			s.statusLbl.Refresh()
+			// The chats view uses EmptyState instead of this label; the other
+			// views keep the label as their own placeholder.
+			if view == "chats" {
+				s.statusLbl.Hide()
+			} else {
+				s.statusLbl.Show()
+			}
 		}
 	})
 }
@@ -489,11 +540,24 @@ func (s *Sidebar) fetchChats() (int, error) {
 func (s *Sidebar) refreshVisible() {
 	s.mu.Lock()
 	s.visible = s.filterAndSortLocked()
+	n := len(s.visible)
+	view := s.view
+	total := len(s.allChats)
 	s.mu.Unlock()
 	fyne.Do(func() {
 		if s.list != nil {
 			s.list.UnselectAll()
 			s.list.Refresh()
+		}
+		// ChatScreen.tsx:898 — the empty panel replaces the list only for the
+		// chats view; status/communities/channels have their own placeholders.
+		if s.emptyS != nil {
+			if view == "chats" && n == 0 {
+				s.emptyS.SetHasChats(total > 0)
+				s.emptyS.Show()
+			} else {
+				s.emptyS.Hide()
+			}
 		}
 	})
 }
