@@ -102,15 +102,10 @@ func (ls *LoginScreen) setQR(code string) {
 }
 
 func waLogo(size float32) fyne.CanvasObject {
-	// Simple green circle + phone mark approximation (Fyne canvas; SVG path rendering limited)
-	bg := canvas.NewCircle(waGreen)
-	bg.Resize(fyne.NewSize(size, size))
-	bg.StrokeWidth = 0
-	txt := canvas.NewText("W", color.White)
-	txt.TextStyle = fyne.TextStyle{Bold: true}
-	txt.TextSize = size * 0.5
-	txt.Alignment = fyne.TextAlignCenter
-	return container.NewMax(bg, container.NewCenter(txt))
+	img := canvas.NewImageFromResource(resourceWALogo)
+	img.FillMode = canvas.ImageFillContain
+	img.SetMinSize(fyne.NewSize(size, size))
+	return container.NewCenter(container.NewGridWrap(fyne.NewSize(size, size), img))
 }
 
 func instructionLine(prefix, bold, suffix string) fyne.CanvasObject {
