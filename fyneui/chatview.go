@@ -25,18 +25,14 @@ import (
 // ChatView mirrors frontend/src/screens/ChatDetail.tsx +
 // components/chat/{MessageList,MessageItem,ChatInput}.tsx.
 type ChatView struct {
-	fa         *FyneApp
-	jid        string
-	chatName   string
-	messages   *fyne.Container
-	scroll     *container.Scroll
-	entry      *widget.Entry
-	headerName *canvas.Text
-	headerSub  *canvas.Text
-	avatarTxt  *canvas.Text
-	avatarBg   *canvas.Circle
-	avatarImg  *canvas.Image
-	cancel     context.CancelFunc
+	fa       *FyneApp
+	jid      string
+	chatName string
+	messages *fyne.Container
+	scroll   *container.Scroll
+	entry    *widget.Entry
+	header   *chatHeader
+	cancel   context.CancelFunc
 
 	maxBubble float32
 	rendered  map[string]bool
@@ -61,65 +57,98 @@ func NewChatView(fa *FyneApp, jid string) *ChatView {
 }
 
 func (cv *ChatView) loadHeader() {
-	cv.headerName = canvas.NewText(cv.chatName, waText)
-	cv.headerName.TextSize = 16
-	cv.headerName.TextStyle = fyne.TextStyle{Bold: true}
-	cv.headerSub = canvas.NewText("click here for contact info", waMuted)
-	cv.headerSub.TextSize = 12
-	cv.avatarTxt = canvas.NewText(sidebarAvatarInitial(cv.chatName, cv.jid), waText)
-	cv.avatarTxt.Alignment = fyne.TextAlignCenter
-	cv.avatarTxt.TextSize = 15
-	cv.avatarTxt.TextStyle = fyne.TextStyle{Bold: true}
-	cv.avatarBg = canvas.NewCircle(avatarColor(cv.jid))
-	cv.avatarImg = canvas.NewImageFromResource(nil)
-	cv.avatarImg.FillMode = canvas.ImageFillCover
-	cv.avatarImg.Hide()
+	cv.header = newChatHeader(func() {
+		cv.cancel()
+		cv.fa.OpenEmptyChat()
+	}, func() {}, chatHeaderData{Name: cv.chatName})
 
 	go func() {
-		name := cv.chatName
-		sub := "click here for contact info"
+		d := chatHeaderData{Name: cv.chatName}
+
 		if isGroupJID(cv.jid) {
-			sub = "group info"
-			if gi, err := cv.fa.api.GetGroupInfo(cv.jid); err == nil && strings.TrimSpace(gi.GroupName) != "" {
-				name = strings.TrimSpace(gi.GroupName)
+			if gi, err := cv.fa.api.GetGroupInfo(cv.jid); err == nil {
+				if n := strings.TrimSpace(gi.GroupName); n != "" {
+					d.Name = n
+				}
+				d.Subtitle = cv.groupSubtitle(gi)
 			}
 		} else if parsed, err := types.ParseJID(cv.jid); err == nil {
 			if contact, cerr := cv.fa.api.GetContact(parsed); cerr == nil && contact != nil {
 				if n := strings.TrimSpace(contact.FullName); n != "" {
-					name = n
+					d.Name = n
 				} else if n := strings.TrimSpace(contact.PushName); n != "" {
-					name = n
+					d.Name = n
 				}
 			}
+			// ChatDetail.tsx only passes onCallClick for contacts.
+			d.Call = func() {}
 		}
-		cv.chatName = name
-		fyne.Do(func() {
-			if cv.headerName != nil {
-				cv.headerName.Text = truncateRunes(name, 42)
-				cv.headerName.Refresh()
-			}
-			if cv.headerSub != nil {
-				cv.headerSub.Text = sub
-				cv.headerSub.Refresh()
-			}
-			if cv.avatarTxt != nil {
-				cv.avatarTxt.Text = sidebarAvatarInitial(name, cv.jid)
-				cv.avatarTxt.Refresh()
-			}
-		})
+		cv.chatName = d.Name
+
 		// avatar photo: same backend call the React list/detail header uses
 		if url, err := cv.fa.api.GetCachedAvatar(cv.jid, false); err == nil && url != "" {
-			if res := dataURLResource(cv.jid, url); res != nil {
-				fyne.Do(func() {
-					if cv.avatarImg != nil {
-						cv.avatarImg.Resource = res
-						cv.avatarImg.Show()
-						cv.avatarImg.Refresh()
-					}
-				})
-			}
+			d.Avatar = dataURLResource(cv.jid, url)
 		}
+
+		fyne.Do(func() {
+			if cv.header != nil {
+				cv.header.Set(d)
+			}
+		})
 	}()
+}
+
+// groupSubtitle mirrors ChatDetail.tsx:135-160 — "You, Alice, ~ Bob, +91 …",
+// self filtered out by phone/JID, each participant labelled by the first of
+// full name → "~ push name" → short → formatted phone.
+func (cv *ChatView) groupSubtitle(gi api.Group) string {
+	self, _ := cv.fa.api.GetProfile("")
+	parts := []string{"You"}
+	for _, p := range gi.Participants {
+		c := p.Contact
+		if self.Phno != "" && c.Phno == self.Phno {
+			continue
+		}
+		if self.JID != "" && c.JID == self.JID {
+			continue
+		}
+		if label := participantLabel(c); label != "" {
+			parts = append(parts, label)
+		}
+	}
+	return strings.Join(parts, ", ")
+}
+
+func participantLabel(c api.Contact) string {
+	if c.FullName != "" {
+		return c.FullName
+	}
+	if c.PushName != "" {
+		return "~ " + c.PushName
+	}
+	if c.Short != "" {
+		return c.Short
+	}
+	return formatPhone(c.Phno)
+}
+
+// formatPhone mirrors frontend/src/lib/utils.ts:12-19.
+func formatPhone(digits string) string {
+	clean := strings.Map(func(r rune) rune {
+		if r >= '0' && r <= '9' {
+			return r
+		}
+		return -1
+	}, digits)
+	if clean == "" {
+		return ""
+	}
+	if len(clean) <= 10 {
+		return "+" + clean
+	}
+	cc := clean[:len(clean)-10]
+	rest := clean[len(clean)-10:]
+	return "+" + cc + " " + rest[:5] + " " + rest[5:]
 }
 
 func (cv *ChatView) loadMessages(ctx context.Context) {
@@ -540,31 +569,7 @@ func (cv *ChatView) sendMessage() {
 }
 
 func (cv *ChatView) Content() fyne.CanvasObject {
-	back := newIconButton("cv-back", iconBack, 20, waMuted, func() {
-		cv.cancel()
-		cv.fa.OpenEmptyChat()
-	})
-
-	avatarInner := container.NewMax(cv.avatarBg)
-	if cv.avatarImg != nil {
-		avatarInner.Add(cv.avatarImg)
-	}
-	avatarInner.Add(container.NewCenter(cv.avatarTxt))
-	avatar := container.NewGridWrap(fyne.NewSize(40, 40), avatarInner)
-
-	nameCol := container.NewVBox(cv.headerName, cv.headerSub)
-	left := container.NewHBox(container.NewPadded(back), spacer(6, 1), avatar, spacer(10, 1), nameCol)
-
-	searchBtn := newIconButton("cv-search", iconSearch, 20, waMuted, func() {})
-	menuBtn := newIconButton("cv-more", iconMore, 20, waMuted, func() {})
-	actions := container.NewHBox(container.NewPadded(searchBtn), menuBtn, spacer(8, 1))
-
-	headerBg := canvas.NewRectangle(waPanel)
-	headerBottom := canvas.NewRectangle(waDivider)
-	headerBottom.SetMinSize(fyne.NewSize(0, 1))
-	headerRow := container.NewBorder(nil, nil, left, actions, nil)
-	header := container.NewMax(headerBg, container.NewBorder(nil, headerBottom, nil, nil,
-		container.NewGridWrap(fyne.NewSize(0, 64), headerRow)))
+	header := cv.header
 
 	cv.scroll = container.NewVScroll(container.New(&padLayout{h: 0, v: 6}, cv.messages))
 	body := container.NewMax(chatBackground(fyne.NewSize(0, 0)), cv.scroll)

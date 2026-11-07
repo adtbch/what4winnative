@@ -10,6 +10,7 @@ import { applyThemeClass } from "./lib/theme"
 import { useChatStore } from "./store/useChatStore"
 import { useAppSettingsStore } from "./store/useAppSettingsStore"
 import { ChatListScreen } from "./screens/ChatScreen"
+import { ChatHeader } from "./components/chat/ChatHeader"
 import type { ChatItem } from "./store/types"
 
 const params = new URLSearchParams(location.search)
@@ -63,8 +64,23 @@ useChatStore.getState().setChats(
   scene === "empty" ? [] : scene === "archived" ? [...FIXTURE, ...FIXTURE_ARCHIVED] : FIXTURE,
 )
 
+const HEADER_SCENES = new Set(["chatheader", "chatheader-group"])
+
 function Scenes() {
-  if (scene === "chatrow") return <ChatListScreen onOpenSettings={() => {}} />
+  if (scene === "chatheader" || scene === "chatheader-group") {
+    const group = scene === "chatheader-group"
+    return (
+      <div className="w-full bg-light-bg dark:bg-[#0b141a]">
+        <ChatHeader
+          chatName={group ? "Vapers Semarangan 18+" : "cintakuuu"}
+          chatSubtitle={group ? "You, Budi, ~ Sari, +62 812-3456-7890" : "online"}
+          onBack={() => {}}
+          onInfoClick={() => {}}
+          onCallClick={group ? undefined : () => {}}
+        />
+      </div>
+    )
+  }
   return <ChatListScreen onOpenSettings={() => {}} />
 }
 
@@ -438,6 +454,92 @@ function collect() {
             color: getComputedStyle(svg).color,
           }
         : null,
+    }
+  }
+
+  // Chat header (ChatHeader.tsx): 12px padded row, 40px avatar, 16px name,
+  // 12px subtitle, and the call/info buttons.
+  if (HEADER_SCENES.has(scene)) {
+    const h2 = document.querySelector("#root h2") as HTMLElement | null
+    if (h2) {
+      const head = h2.closest("div.border-b") as HTMLElement
+      const hr = head.getBoundingClientRect()
+      const hs = getComputedStyle(head)
+      const av = head.querySelector("div.w-10") as HTMLElement | null
+      const avWrap = av?.parentElement as HTMLElement | null
+      const ar = av?.getBoundingClientRect()
+      const as_ = av ? getComputedStyle(av) : null
+      const nr = h2.getBoundingClientRect()
+      const ns = getComputedStyle(h2)
+      const subEl = h2.nextElementSibling as HTMLElement | null
+      const sr = subEl?.getBoundingClientRect()
+      const ss = subEl ? getComputedStyle(subEl) : null
+      const btns = Array.from(head.querySelectorAll("button")).map(b => {
+        const r = b.getBoundingClientRect()
+        const bs = getComputedStyle(b)
+        const svg = b.querySelector("svg")
+        const gr = svg?.getBoundingClientRect()
+        return {
+          label: b.getAttribute("aria-label"),
+          x: Math.round(r.x),
+          y: Math.round(r.y - hr.y),
+          w: Math.round(r.width),
+          h: Math.round(r.height),
+          padding: bs.padding,
+          radius: bs.borderRadius,
+          color: bs.color,
+          icon: gr ? Math.round(gr.width) : null,
+          iconX: gr ? Math.round(gr.x - r.x) : null,
+        }
+      })
+      out.chatHeader = {
+        box: {
+          x: Math.round(hr.x),
+          y: Math.round(hr.y),
+          w: Math.round(hr.width),
+          h: Math.round(hr.height),
+          padding: hs.padding,
+          bg: hs.backgroundColor,
+          borderBottom: hs.borderBottomWidth + " " + hs.borderBottomColor,
+          gap: hs.gap,
+          justify: hs.justifyContent,
+        },
+        avatar: ar
+          ? {
+              x: Math.round(ar.x - hr.x),
+              y: Math.round(ar.y - hr.y),
+              w: Math.round(ar.width),
+              h: Math.round(ar.height),
+              radius: as_!.borderRadius,
+              bg: as_.backgroundColor,
+              gap: getComputedStyle(avWrap!).gap,
+            }
+          : null,
+        name: {
+          text: (h2.textContent || "").trim(),
+          x: Math.round(nr.x - hr.x),
+          y: Math.round(nr.y - hr.y),
+          w: Math.round(nr.width),
+          h: Math.round(nr.height),
+          fontSize: ns.fontSize,
+          fontWeight: ns.fontWeight,
+          lineHeight: ns.lineHeight,
+          color: ns.color,
+        },
+        subtitle: subEl
+          ? {
+              text: (subEl.textContent || "").trim(),
+              x: Math.round(sr!.x - hr.x),
+              y: Math.round(sr!.y - hr.y),
+              w: Math.round(sr!.width),
+              h: Math.round(sr!.height),
+              fontSize: ss!.fontSize,
+              lineHeight: ss!.lineHeight,
+              color: ss!.color,
+            }
+          : null,
+        buttons: btns,
+      }
     }
   }
 

@@ -50,6 +50,12 @@ const iconArchive = `<path d="M20.54 5.23 19.15 3.55A1.5 1.5 0 0 0 18 3H6a1.5 1.
 // iconChatBubble is EmptyStateIcon from chat_icons.tsx (120px in React).
 const iconChatBubble = `<path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>`
 
+// iconPhone is ChatHeader.tsx's 22px PhoneIcon.
+const iconPhone = `<path d="M19.95 21q-3.225 0-6.287-1.438-3.063-1.437-5.425-3.8-2.363-2.362-3.8-5.425Q3 7.275 3 4.05q0-.45.3-.75t.75-.3H8.1q.35 0 .613.213.262.212.337.537l.787 3.45q.05.2-.012.387-.063.188-.238.338l-2.65 2.65q1.15 2 2.8 3.65t3.675 2.775l2.65-2.625q.15-.15.35-.225.2-.075.4-.025l3.375.8q.35.075.563.337.212.263.212.613v4.05q0 .45-.3.75t-.75.3Z"/>`
+
+// iconInfo is InfoIcon from chat_info_icons.tsx (20px).
+const iconInfo = `<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>`
+
 const iconMuted = `<path d="M20 18.7 7.8 6.1 5.3 3.5 4 4.8l2.8 2.8c-.5 1-.8 2.2-.8 3.4v5l-2 2v1h13.7l2 2L21 19.7l-1-1zM12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-7.3V11c0-3.1-1.6-5.6-4.5-6.3V4a1.5 1.5 0 0 0-3 0v.7c-.2 0-.3.1-.4.1L18 14.7z"/>`
 
 const iconPhoto = `<path d="M21 5H3a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zm-1 12H4l4.5-6 3 3.8L14 11l6 6z"/>`
