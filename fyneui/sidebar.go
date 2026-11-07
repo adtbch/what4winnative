@@ -818,84 +818,7 @@ func sidebarAvatarInitial(name, jid string) string {
 	return strings.ToUpper(string(r[0]))
 }
 
-func avatarColor(jid string) color.Color {
-	palette := []color.NRGBA{
-		{R: 0x00, G: 0xa8, B: 0x84, A: 255},
-		{R: 0x53, G: 0xbd, B: 0xeb, A: 255},
-		{R: 0xd4, G: 0x76, B: 0xe8, A: 255},
-		{R: 0xf7, G: 0x9c, B: 0x4c, A: 255},
-		{R: 0xe5, G: 0x42, B: 0xa3, A: 255},
-		{R: 0x06, G: 0xcf, B: 0x9c, A: 255},
-		{R: 0x7f, G: 0x66, B: 0xff, A: 255},
-	}
-	var h uint32
-	for _, c := range jid {
-		h = h*31 + uint32(c)
-	}
-	return palette[h%uint32(len(palette))]
-}
-
-func spacer(w, h float32) fyne.CanvasObject {
-	if h <= 0 {
-		h = 1
-	}
-	if w <= 0 {
-		w = 1
-	}
-	return container.NewGridWrap(fyne.NewSize(w, h), canvas.NewRectangle(color.Transparent))
-}
-
-func initials(name string) string {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return "?"
-	}
-	r := []rune(name)
-	return strings.ToUpper(string(r[0]))
-}
-
 // ---------- layouts & small widgets ----------
-
-// padLayout insets its single child.
-type padLayout struct{ h, v float32 }
-
-func (l *padLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
-	if len(objects) == 0 {
-		return fyne.Size{}
-	}
-	s := objects[0].MinSize()
-	return fyne.NewSize(s.Width+l.h*2, s.Height+l.v*2)
-}
-
-func (l *padLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
-	for _, o := range objects {
-		o.Move(fyne.NewPos(l.h, l.v))
-		o.Resize(fyne.NewSize(maxF(size.Width-l.h*2, 0), maxF(size.Height-l.v*2, 0)))
-	}
-}
-
-type minSizeLayout struct{ w, h float32 }
-
-func (l *minSizeLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
-	s := fyne.NewSize(l.w, l.h)
-	if len(objects) > 0 {
-		c := objects[0].MinSize()
-		if c.Width > s.Width {
-			s.Width = c.Width
-		}
-		if c.Height > s.Height {
-			s.Height = c.Height
-		}
-	}
-	return s
-}
-
-func (l *minSizeLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
-	for _, o := range objects {
-		o.Move(fyne.NewPos(0, 0))
-		o.Resize(size)
-	}
-}
 
 // rowCatcher gives a list row hover feedback and a tap target.
 type rowCatcher struct {
@@ -975,10 +898,3 @@ func (p *tabPill) Tapped(*fyne.PointEvent) {
 	}
 }
 func (p *tabPill) Cursor() desktop.Cursor { return desktop.PointerCursor }
-
-func maxF(a, b float32) float32 {
-	if a > b {
-		return a
-	}
-	return b
-}
