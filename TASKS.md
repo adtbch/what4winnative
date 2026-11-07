@@ -86,7 +86,9 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
 - [ ] **T7 · Chat row** — 🟡 sebagian (geometri + teks + avatar terverifikasi)
   - [x] tinggi baris **72** = React (`stackedLayout{24,20}` gap 4, py-3) — `TestChatRowHeightMatchesReact`
   - [x] avatar **48px** di inset **16px** — `TestChatRowAvatarGeometry`
-  - [x] font nama **16 bold**, preview **14** (React `text-base`/`text-sm`)
+  - [x] font nama **16 bold**, preview **14**, waktu **12** — diukur dari `getComputedStyle` di harness, bukan ditebak: name `16px/24px/500`, preview `14px/20px/400`, time `12px/16px/500`
+  - [x] `harness.tsx` sekarang mem-dump `typography` (fontSize/lineHeight/fontWeight/color) ke `#metrics`
+  - [x] catatan: format tanggal **bukan** drift — React `toLocaleDateString([])` menghasilkan `11/7/2025` hanya karena Chrome headless ber-locale en-US; di locale Indonesia keduanya `7/11/2025`
   - [x] nama & preview **ellipsize** via `truncLabel` — `canvas.Text` tidak pernah clip, dulu menabrak timestamp
   - [x] avatar fallback pakai **glyph React** (people grup / person kontak), bukan inisial — `TestAvatarGlyphVisible` (84/153 ink px)
   - [x] `iconPerson` salah skala (viewBox 48 dipaksa /24 → ter-clip habis) → `svgResourceVB`/`iconImageVB`
