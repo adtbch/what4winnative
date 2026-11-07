@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -40,6 +41,9 @@ type ChatView struct {
 	lastDay      string
 	lastSenderID string
 	hasLast      bool
+
+	mu              sync.Mutex
+	mediaGeneration uint64
 }
 
 func NewChatView(fa *FyneApp, jid string) *ChatView {
@@ -429,40 +433,7 @@ func (cv *ChatView) mediaBlock(m store.DecodedMessage, kind int, maxW float32) f
 
 	id := m.Info.ID
 	chatID := cv.jid
-	go func() {
-		var dataURL string
-		if kind == mediaKindVideo {
-			dataURL = cv.fa.api.GetVideoThumbnail(id)
-		} else {
-			dataURL = cv.fa.api.GetImageThumbnail(id)
-			// MediaContent.tsx auto-downloads images/stickers as soon as they are
-			// on screen: the embedded thumbnail is only a placeholder.
-			if dataURL == "" {
-				if u, err := cv.fa.api.GetCachedImage(id); err == nil {
-					dataURL = u
-				}
-			}
-			if dataURL == "" {
-				if u, err := cv.fa.api.DownloadMedia(chatID, id); err == nil {
-					dataURL = u
-				} else {
-					log.Println("DownloadMedia:", id, err)
-				}
-			}
-		}
-		if dataURL == "" {
-			return
-		}
-		res := dataURLResource(id, dataURL)
-		if res == nil {
-			return
-		}
-		fyne.Do(func() {
-			img.Resource = res
-			img.Refresh()
-			box.Refresh()
-		})
-	}()
+	enqueueMediaFetch(cv, chatID, id, kind, img, box)
 
 	if kind == mediaKindVideo {
 		play := canvas.NewText("▶", waWhite)
