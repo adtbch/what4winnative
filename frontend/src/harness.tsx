@@ -130,6 +130,47 @@ function collect() {
     }
   }
 
+  // View tabs (chats/communities/channels/status): measured, not guessed.
+  const tabButtons = Array.from(
+    document.querySelectorAll("#root .overflow-x-auto button"),
+  ).filter(b => /^(chats|communities|channels|status)$/i.test((b.textContent || "").trim()))
+  if (tabButtons.length) {
+    const box = tabButtons[0].parentElement!
+    const br = box.getBoundingClientRect()
+    const bs = getComputedStyle(box)
+    out.tabs = {
+      container: {
+        h: Math.round(br.height),
+        padding: bs.padding,
+        gap: bs.gap,
+        boxSizing: bs.boxSizing,
+        display: bs.display,
+        flexWrap: bs.flexWrap,
+        scrollH: box.scrollHeight,
+        clientH: box.clientHeight,
+        offsetH: (box as HTMLElement).offsetHeight,
+        childCount: box.children.length,
+      },
+      pills: tabButtons.map(b => {
+        const r = b.getBoundingClientRect()
+        const cs = getComputedStyle(b)
+        return {
+          label: (b.textContent || "").trim(),
+          h: Math.round(r.height),
+          w: Math.round(r.width),
+          padding: cs.padding,
+          radius: cs.borderRadius,
+          fontSize: cs.fontSize,
+          fontWeight: cs.fontWeight,
+          borderWidth: cs.borderTopWidth,
+          borderColor: cs.borderTopColor,
+          bg: cs.backgroundColor,
+          color: cs.color,
+        }
+      }),
+    }
+  }
+
   const pre = document.getElementById("metrics")
   if (pre) pre.textContent = JSON.stringify(out, null, 2)
   ;(window as unknown as { __PARITY__: unknown }).__PARITY__ = out

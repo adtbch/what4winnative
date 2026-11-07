@@ -38,7 +38,7 @@ type Sidebar struct {
 
 	list      *widget.List
 	root      fyne.CanvasObject
-	tabBox    *fyne.Container
+	tabs      *viewTabs
 	searchBox fyne.CanvasObject
 	archivedR fyne.CanvasObject
 	statusLbl *canvas.Text
@@ -134,15 +134,18 @@ func (s *Sidebar) topBar() fyne.CanvasObject {
 	header.Resize(fyne.NewSize(0, 64))
 
 	// tabs + search live below the header, like ChatScreen.tsx
-	s.tabBox = container.NewHBox()
-	s.rebuildTabs()
-	tabs := container.NewHScroll(container.NewPadded(s.tabBox))
-	tabs.SetMinSize(fyne.NewSize(0, 38))
+	s.tabs = newViewTabs(s.view, func(v string) {
+		s.mu.Lock()
+		s.view = v
+		s.mu.Unlock()
+		s.syncChrome()
+		s.refreshVisible()
+	})
 
 	s.searchBox = s.searchBar()
 	s.archivedR = s.archivedRow()
 
-	return container.NewVBox(header, tabs, s.searchBox, s.archivedR)
+	return container.NewVBox(header, s.tabs, s.searchBox, s.archivedR)
 }
 
 func (s *Sidebar) body() fyne.CanvasObject {
@@ -174,31 +177,6 @@ func (s *Sidebar) searchBar() fyne.CanvasObject {
 
 func (s *Sidebar) archivedRow() fyne.CanvasObject {
 	return container.NewVBox()
-}
-
-func (s *Sidebar) rebuildTabs() {
-	s.mu.RLock()
-	cur := s.view
-	s.mu.RUnlock()
-	fyne.Do(func() {
-		if s.tabBox == nil {
-			return
-		}
-		objs := make([]fyne.CanvasObject, 0, 4)
-		for _, v := range []string{"chats", "communities", "channels", "status"} {
-			vv := v
-			objs = append(objs, newTabPill(vv, cur == vv, func() {
-				s.mu.Lock()
-				s.view = vv
-				s.mu.Unlock()
-				s.rebuildTabs()
-				s.syncChrome()
-				s.refreshVisible()
-			}))
-		}
-		s.tabBox.Objects = objs
-		s.tabBox.Refresh()
-	})
 }
 
 // syncChrome hides the search bar for the status tab, like ChatScreen.tsx.
@@ -872,54 +850,3 @@ func (r *rowCatcher) Tapped(*fyne.PointEvent) {
 	}
 }
 func (r *rowCatcher) Cursor() desktop.Cursor { return desktop.PointerCursor }
-
-// tabPill is ChatScreen.tsx's view tab: rounded-full, transparent with a faint
-// border when idle, light chip with dark text when selected.
-type tabPill struct {
-	widget.BaseWidget
-	text   string
-	active bool
-	onTap  func()
-	hover  *canvas.Rectangle
-}
-
-func newTabPill(text string, active bool, onTap func()) *tabPill {
-	p := &tabPill{text: text, active: active, onTap: onTap}
-	p.ExtendBaseWidget(p)
-	p.hover = canvas.NewRectangle(color.Transparent)
-	p.hover.CornerRadius = 14
-	return p
-}
-
-func (p *tabPill) CreateRenderer() fyne.WidgetRenderer {
-	bg := canvas.NewRectangle(color.Transparent)
-	bg.CornerRadius = 14
-	if p.active {
-		bg.FillColor = waPillOn
-	}
-	border := canvas.NewRectangle(color.Transparent)
-	if !p.active {
-		border.StrokeColor = waPillBorder
-		border.StrokeWidth = 1
-	}
-	border.CornerRadius = 14
-
-	fg := waMuted
-	if p.active {
-		fg = waPillOnText
-	}
-	lbl := canvas.NewText(p.text, fg)
-	lbl.TextSize = 13
-	if p.active {
-		lbl.TextStyle = fyne.TextStyle{Bold: true}
-	}
-	body := container.NewMax(bg, border, container.New(&padLayout{h: 12, v: 5}, container.NewCenter(lbl)))
-	return widget.NewSimpleRenderer(body)
-}
-
-func (p *tabPill) Tapped(*fyne.PointEvent) {
-	if p.onTap != nil {
-		p.onTap()
-	}
-}
-func (p *tabPill) Cursor() desktop.Cursor { return desktop.PointerCursor }
