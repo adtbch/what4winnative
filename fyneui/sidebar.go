@@ -274,9 +274,14 @@ func (s *Sidebar) newRow() fyne.CanvasObject {
 	// Name and preview must ellipsize, not overflow: canvas.Text never clips, so
 	// a long name draws straight over the timestamp. React gets this from
 	// `truncate` (overflow hidden + text-overflow ellipsis).
+	// React: text-base (16px) / leading-6 (24px) / font-medium (500).
+	// Fyne's TextStyle is a Bold flag only — no 500 weight — so Bold (700) is the
+	// closest match; regular (400) reads visibly thinner than React next to the
+	// 14px preview.
 	name := newTruncLabel(16, waText, true)
 	timeTxt := canvas.NewText("", waMuted)
 	timeTxt.TextSize = 12
+	timeTxt.TextStyle = fyne.TextStyle{Bold: true} // font-medium
 	timeTxt.Alignment = fyne.TextAlignTrailing
 	topRow := container.NewBorder(nil, nil, nil,
 		container.NewHBox(timeTxt), container.New(&truncLayout{l: name}, name.obj()))

@@ -28,7 +28,7 @@ const FIXTURE: ChatItem[] = [
   {
     id: "120363999999999999@g.us",
     name: "Vapers Semarangan 18+",
-    subtitle: "<p>Budi: besok kumpul jam 8</p>",
+    subtitle: "besok kumpul jam 8",
     type: "group",
     timestamp: 1762490000,
     sender: "Budi",
@@ -104,6 +104,29 @@ function collect() {
           })
         }
       })
+    }
+  }
+
+  // Typography of the first row, measured from the live DOM. The name is the
+  // <h3>, the preview is the sibling div that carries the subtitle HTML, and the
+  // timestamp is the span inside the baseline row.
+  const firstRow = document.querySelector("#root .overflow-y-auto > div")
+  if (firstRow) {
+    const pick = (sel: string) => {
+      const el = firstRow.querySelector(sel)
+      if (!el) return null
+      const cs = getComputedStyle(el)
+      return {
+        fontSize: cs.fontSize,
+        lineHeight: cs.lineHeight,
+        fontWeight: cs.fontWeight,
+        color: cs.color,
+      }
+    }
+    out.typography = {
+      name: pick("h3"),
+      preview: pick(".text-sm"),
+      time: pick(".text-xs"),
     }
   }
 
