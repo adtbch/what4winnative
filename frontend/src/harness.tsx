@@ -65,6 +65,7 @@ useChatStore.getState().setChats(
 )
 
 const HEADER_SCENES = new Set(["chatheader", "chatheader-group"])
+const BUBBLE_SCENES = new Set(["bubble-sent","bubble-recv","bubble-group","bubble-emoji","bubble-edited"])
 
 function Scenes() {
   if (scene === "chatheader" || scene === "chatheader-group") {
@@ -78,6 +79,33 @@ function Scenes() {
           onInfoClick={() => {}}
           onCallClick={group ? undefined : () => {}}
         />
+      </div>
+    )
+  }
+  if (BUBBLE_SCENES.has(scene)) {
+    const fromMe = scene === "bubble-sent" || scene === "bubble-emoji" || scene === "bubble-edited"
+    const group = scene === "bubble-group"
+    const isSticker = false, firstInGroup = true, isFromMe = fromMe, isGroup = group
+    const emojiOnly = scene === "bubble-emoji", edited = scene === "bubble-edited"
+    const content = emojiOnly ? "😂😂😂" : "halo bro apa kabar hari ini"
+    const clsx = (...a: any[]) => a.flatMap((x: any) => typeof x === 'string' ? x : x ? Object.keys(x).filter(k => x[k]) : []).join(' ')
+    return (
+      <div className="w-[520px] bg-[#0b141a] p-4" data-bubble-scene={scene}>
+        <div className={clsx("flex group", isFromMe ? "justify-end" : "justify-start")}>
+          {!isFromMe && isGroup && <div className="w-7 ml-3 shrink-0" />}
+          <div className={clsx("max-w-[85%] rounded-xl px-2 pt-1 pb-1.5 relative min-w-0",
+            !isFromMe && isGroup ? "ml-2 mr-5" : "mx-5",
+            { "rounded-tl-sm": firstInGroup && !isFromMe && !isSticker, "rounded-tr-sm": firstInGroup && isFromMe && !isSticker,
+              "bg-[#144d37]": isFromMe && !isSticker, "bg-[#242626]": !isFromMe && !isSticker })} data-bubble-box>
+            {!isFromMe && isGroup && firstInGroup && <span className="text-xs font-bold mb-1 block" style={{color:'#53bdeb'}} data-bubble-sender>Budi</span>}
+            {emojiOnly ? <span className="text-3xl leading-10" data-bubble-body>{content}</span> : <span className="text-sm" data-bubble-body>{content}</span>}
+            <div className="flex justify-end items-center gap-1 mt-0.5" data-bubble-meta>
+              {edited && <span className="text-[11px] opacity-60 mr-1">Edited</span>}
+              <span className="text-[11px] opacity-60">10:05</span>
+              {isFromMe && <span className="text-[11px]" style={{color:'#53bdeb'}} data-bubble-tick>✓✓</span>}
+            </div>
+          </div>
+        </div>
       </div>
     )
   }
@@ -539,6 +567,27 @@ function collect() {
             }
           : null,
         buttons: btns,
+      }
+    }
+  }
+
+  if (BUBBLE_SCENES.has(scene)) {
+    const root = document.querySelector('#root [data-bubble-scene]') as HTMLElement | null
+    const box = root?.querySelector('[data-bubble-box]') as HTMLElement | null
+    if (root && box) {
+      const rr = root.getBoundingClientRect(); const br = box.getBoundingClientRect(); const cs = getComputedStyle(box)
+      const meta = box.querySelector('[data-bubble-meta]') as HTMLElement | null
+      const sender = box.querySelector('[data-bubble-sender]') as HTMLElement | null
+      const body = box.querySelector('[data-bubble-body]') as HTMLElement | null
+      const tick = box.querySelector('[data-bubble-tick]') as HTMLElement | null
+      out.bubble = {
+        scene,
+        box: { x: Math.round(br.x-rr.x), y: Math.round(br.y-rr.y), w: Math.round(br.width), h: Math.round(br.height), bg: cs.backgroundColor, borderRadius: cs.borderRadius, borderTopLeftRadius: cs.borderTopLeftRadius, borderTopRightRadius: cs.borderTopRightRadius, padding: cs.padding },
+        body: body ? { fontSize: getComputedStyle(body).fontSize, lineHeight: getComputedStyle(body).lineHeight } : null,
+        meta: meta ? { fontSize: getComputedStyle(meta.querySelector('span')||meta).fontSize, text: (meta.textContent||'').trim() } : null,
+        sender: sender ? { text: (sender.textContent||'').trim(), color: getComputedStyle(sender).color, fontSize: getComputedStyle(sender).fontSize } : null,
+        tick: tick ? { color: getComputedStyle(tick).color } : null,
+        fromMe: /bubble-sent|bubble-emoji|bubble-edited/.test(scene),
       }
     }
   }

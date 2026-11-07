@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"image/png"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -180,4 +181,109 @@ func TestBubbleEmojiOnlyIsLarge(t *testing.T) {
 	if !emojiOnlyText("<p>👍</p>") {
 		t.Fatal("html-wrapped emoji must be detected")
 	}
+}
+
+// --- measured parity (React spec: MessageItem.tsx + theme) ---
+// Harness render of MessageItem blank (wailsjs/store deps); evidence here is
+// (1) numpy render geometry against named spec consts, (2) code pinned to
+// React:445-446/272-283, theme tokens.
+
+func hexNRGBA(h string) color.NRGBA {
+	if len(h) == 7 && h[0] == '#' {
+		r, _ := strconv.ParseUint(h[1:3], 16, 8)
+		g, _ := strconv.ParseUint(h[3:5], 16, 8)
+		b, _ := strconv.ParseUint(h[5:7], 16, 8)
+		return color.NRGBA{R: uint8(r), G: uint8(g), B: uint8(b), A: 255}
+	}
+	return color.NRGBA{}
+}
+
+func TestBubbleParitySpec(t *testing.T) {
+	// bg tokens (theme_wa.go / dark bubbles)
+	if bubbleBg(true) != hexNRGBA("#144d37") {
+		t.Errorf("sent bg = %#v", bubbleBg(true))
+	}
+	if bubbleBg(false) != hexNRGBA("#242626") {
+		t.Errorf("recv bg = %#v", bubbleBg(false))
+	}
+	if waTick != hexNRGBA("#53bdeb") {
+		t.Errorf("tick = %#v", waTick)
+	}
+	// corners
+	if bubbleCorner(true, true) != 2 || bubbleCorner(false, true) != 2 || bubbleCorner(true, false) != 12 {
+		t.Error("corner spec")
+	}
+}
+
+func TestBubbleParityRender(t *testing.T) {
+	a := test.NewApp()
+	defer a.Quit()
+	a.Settings().SetTheme(newWATheme())
+	img := renderBubble(t, "bubble_parity_sent", true, "halo bro apa kabar hari ini")
+	b := img.Bounds()
+	// dominant card = sent green #144d37
+	var gpx int
+	sent := bubbleBg(true).(color.NRGBA)
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			px := color.NRGBAModel.Convert(img.At(x, y)).(color.NRGBA)
+			if abs(int(px.R)-int(sent.R))+abs(int(px.G)-int(sent.G))+abs(int(px.B)-int(sent.B)) < 18 {
+				gpx++
+			}
+		}
+	}
+	if gpx < 800 {
+		t.Errorf("sent bubble card not dominant (green px=%d)", gpx)
+	}
+
+	// recv card
+	img2 := renderBubble(t, "bubble_parity_recv", false, "halo bro apa kabar hari ini")
+	recv := bubbleBg(false).(color.NRGBA)
+	rpx := 0
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			px := color.NRGBAModel.Convert(img2.At(x, y)).(color.NRGBA)
+			if abs(int(px.R)-int(recv.R))+abs(int(px.G)-int(recv.G))+abs(int(px.B)-int(recv.B)) < 18 {
+				rpx++
+			}
+		}
+	}
+	if rpx < 800 {
+		t.Errorf("recv bubble card not dominant (px=%d)", rpx)
+	}
+
+	// emoji-only renders larger (ink height >= short text height)
+	em := renderBubble(t, "bubble_parity_emoji", true, "😂😂😂")
+	inkH := func(im image.Image) int {
+		bb := im.Bounds()
+		y0, y1 := bb.Max.Y, 0
+		for y := bb.Min.Y; y < bb.Max.Y; y++ {
+			for x := bb.Min.X; x < bb.Max.X; x++ {
+				px := color.NRGBAModel.Convert(im.At(x, y)).(color.NRGBA)
+				if px.R > 120 || px.G > 120 || px.B > 120 {
+					if y < y0 {
+						y0 = y
+					}
+					if y > y1 {
+						y1 = y
+					}
+					break
+				}
+			}
+		}
+		if y1 < y0 {
+			return 0
+		}
+		return y1 - y0
+	}
+	if inkH(em) <= inkH(img) {
+		t.Errorf("emoji-only not larger: emoji h=%d text h=%d", inkH(em), inkH(img))
+	}
+}
+
+func abs(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
