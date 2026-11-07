@@ -640,7 +640,6 @@ func profileColorNRGBA(jid string) color.NRGBA {
 	return waGreen
 }
 
-
 func (cv *ChatView) toggleInfo() {
 	cv.showInfo = !cv.showInfo
 	if cv.showInfo && cv.infoPanel == nil {
@@ -652,7 +651,9 @@ func (cv *ChatView) toggleInfo() {
 
 func (cv *ChatView) refreshLayout() {
 	fyne.Do(func() {
-		if cv.mainSplit == nil { return }
+		if cv.mainSplit == nil {
+			return
+		}
 		body := cv.mainSplit.Objects[0]
 		var right fyne.CanvasObject
 		if cv.showInfo && cv.infoPanel != nil {

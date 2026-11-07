@@ -12,10 +12,10 @@ import (
 // ChatInfo panel — T14a parity scaffold (TASKS spec; React ChatInfo.tsx is richer).
 // Panel 320px (right), header 64px + close, avatar 96px, name 18px, About section.
 const (
-	chatInfoWidth     float32 = 320
-	chatInfoHeaderH   float32 = 64
-	chatInfoAvatarSz  float32 = 96
-	chatInfoNameSize  float32 = 18
+	chatInfoWidth    float32 = 320
+	chatInfoHeaderH  float32 = 64
+	chatInfoAvatarSz float32 = 96
+	chatInfoNameSize float32 = 18
 )
 
 type chatInfoData struct {
@@ -45,7 +45,7 @@ func newChatInfoPanel(onClose func()) *chatInfoPanel {
 	p := &chatInfoPanel{onClose: onClose}
 	p.ExtendBaseWidget(p)
 	p.bg = canvas.NewRectangle(waPanel) // dark secondary
-	p.lineV = canvas.NewRectangle(color.NRGBA{R:255,G:255,B:255,A:13})
+	p.lineV = canvas.NewRectangle(color.NRGBA{R: 255, G: 255, B: 255, A: 13})
 	p.title = canvas.NewText("Contact Info", waText)
 	p.title.TextSize = 16
 	p.title.TextStyle = fyne.TextStyle{Bold: true}
@@ -101,8 +101,12 @@ func (p *chatInfoPanel) Set(d chatInfoData) {
 func stringsTrim(s string) string {
 	// local to avoid import churn in small file; strings imported if needed
 	i, j := 0, len(s)
-	for i < j && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r') { i++ }
-	for j > i && (s[j-1] == ' ' || s[j-1] == '\t' || s[j-1] == '\n' || s[j-1] == '\r') { j-- }
+	for i < j && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r') {
+		i++
+	}
+	for j > i && (s[j-1] == ' ' || s[j-1] == '\t' || s[j-1] == '\n' || s[j-1] == '\r') {
+		j--
+	}
 	return s[i:j]
 }
 
@@ -111,7 +115,7 @@ func (p *chatInfoPanel) CreateRenderer() fyne.WidgetRenderer {
 	header := container.New(&padLayout{h: 12, v: 0},
 		container.NewHBox(container.NewCenter(closeBtn), container.NewPadded(p.title)))
 	headerH := container.NewMax(container.NewGridWrap(fyne.NewSize(chatInfoWidth, chatInfoHeaderH), container.NewMax(canvas.NewRectangle(color.Transparent), header)))
-	hLine := canvas.NewRectangle(color.NRGBA{R:255,G:255,B:255,A:13})
+	hLine := canvas.NewRectangle(color.NRGBA{R: 255, G: 255, B: 255, A: 13})
 	hLine.SetMinSize(fyne.NewSize(chatInfoWidth, 1))
 
 	av := container.NewGridWrap(fyne.NewSize(chatInfoAvatarSz, chatInfoAvatarSz), container.NewMax(p.avBg, container.NewCenter(p.avImg), container.NewCenter(p.avTxt)))

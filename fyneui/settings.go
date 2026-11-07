@@ -54,7 +54,7 @@ func (s *settingsScreen) CreateRenderer() fyne.WidgetRenderer {
 		row := r
 		fg := waText
 		if row.Danger {
-			fg = color.NRGBA{R:239,G:68,B:68,A:255}
+			fg = color.NRGBA{R: 239, G: 68, B: 68, A: 255}
 		}
 		ic := iconImage("set-"+row.Label, row.Icon, 20, fg)
 		lbl := canvas.NewText(row.Label, fg)

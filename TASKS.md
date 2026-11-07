@@ -200,7 +200,7 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
 ## Blocker aktif
 
 - [ ] **Session WA websocket tidak tersambung** — `DownloadMedia: ... failed: websocket not connected`. Media baru tidak bisa diunduh; perlu reconnect (scan QR / pastikan linked device aktif). Ini **bukan** bug renderer.
-- [ ] **Dead code** `railItem`/`railAvatar` di `fyneui/app.go` (rail sudah tidak dipakai `buildShell`) — hapus saat menyentuh file itu.
+- [ ] **Cek dead code rail** `railItem`/`railAvatar`/`rail()` di `fyneui/app.go` — masih dipakai `rail()`; hanya hapus jika `rail()` benar-benar tak direferensikan `buildShell`/flow aktif (verifikasi grep dulu).
 
 ## Catatan
 

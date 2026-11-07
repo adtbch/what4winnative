@@ -32,7 +32,11 @@ func TestChatInfoPanelGroupTitle(t *testing.T) {
 func TestChatInfoPanelClose(t *testing.T) {
 	hit := false
 	p := newChatInfoPanel(func() { hit = true })
-	if p.onClose == nil { t.Fatal("nil close") }
+	if p.onClose == nil {
+		t.Fatal("nil close")
+	}
 	p.onClose()
-	if !hit { t.Fatal("close not called") }
+	if !hit {
+		t.Fatal("close not called")
+	}
 }

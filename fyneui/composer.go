@@ -56,7 +56,6 @@ func newSendCircle(onTap func()) fyne.CanvasObject {
 	return container.NewGridWrap(fyne.NewSize(44, 44), inner) // 44px ~ h-11 w-11
 }
 
-
 type tapArea struct {
 	widget.BaseWidget
 	onTap func()
@@ -70,5 +69,9 @@ func newTapArea(onTap func()) *tapArea {
 func (t *tapArea) CreateRenderer() fyne.WidgetRenderer {
 	return widget.NewSimpleRenderer(canvas.NewRectangle(color.Transparent))
 }
-func (t *tapArea) Tapped(*fyne.PointEvent)             { if t.onTap != nil { t.onTap() } }
-func (t *tapArea) Cursor() desktop.Cursor              { return desktop.PointerCursor }
+func (t *tapArea) Tapped(*fyne.PointEvent) {
+	if t.onTap != nil {
+		t.onTap()
+	}
+}
+func (t *tapArea) Cursor() desktop.Cursor { return desktop.PointerCursor }
