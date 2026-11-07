@@ -7,18 +7,20 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/widget"
 	qrcode "github.com/skip2/go-qrcode"
 )
 
 var (
-	waGreen    = color.NRGBA{R: 37, G: 211, B: 102, A: 255}
-	bgPage     = color.NRGBA{R: 240, G: 242, B: 245, A: 255}
-	cardWhite  = color.NRGBA{R: 255, G: 255, B: 255, A: 255}
-	borderGray = color.NRGBA{R: 229, G: 231, B: 235, A: 255}
-	textDark   = color.NRGBA{R: 55, G: 65, B: 81, A: 255}
-	textBody   = color.NRGBA{R: 75, G: 85, B: 99, A: 255}
-	textMuted  = color.NRGBA{R: 107, G: 114, B: 128, A: 255}
+	bgPage       = color.NRGBA{R: 240, G: 242, B: 245, A: 255} // bg-light-secondary approx
+	cardWhite    = color.NRGBA{R: 255, G: 255, B: 255, A: 255}
+	borderLight  = color.NRGBA{R: 243, G: 244, B: 246, A: 255} // gray-100
+	borderDiv    = color.NRGBA{R: 243, G: 244, B: 246, A: 255}
+	titleGray    = color.NRGBA{R: 55, G: 65, B: 81, A: 255}    // gray-700
+	textGray     = color.NRGBA{R: 75, G: 85, B: 99, A: 255}    // gray-600
+	boldGray     = color.NRGBA{R: 31, G: 41, B: 55, A: 255}    // gray-800
+	mutedGray    = color.NRGBA{R: 107, G: 114, B: 128, A: 255} // gray-500
+	statusGreen  = color.NRGBA{R: 74, G: 222, B: 128, A: 255}  // green-400 (light-primary-ish)
+	qrShadow     = color.NRGBA{R: 0, G: 0, B: 0, A: 18}
 )
 
 type LoginScreen struct {
@@ -30,13 +32,14 @@ type LoginScreen struct {
 func NewLoginScreen(fa *FyneApp) *LoginScreen {
 	ls := &LoginScreen{
 		fa:     fa,
-		status: canvas.NewText("Waiting for QR code...", textMuted),
+		status: canvas.NewText("", statusGreen),
 		qrImg:  canvas.NewImageFromImage(nil),
 	}
 	ls.status.TextSize = 13
+	ls.status.TextStyle = fyne.TextStyle{Bold: true}
 	ls.status.Alignment = fyne.TextAlignCenter
 	ls.qrImg.FillMode = canvas.ImageFillContain
-	ls.qrImg.SetMinSize(fyne.NewSize(264, 264))
+	ls.qrImg.SetMinSize(fyne.NewSize(264, 264)) // size-66 approx
 
 	go ls.listenEvents()
 	go func() {
@@ -73,17 +76,21 @@ func (ls *LoginScreen) listenEvents() {
 
 func statusLabel(s string) string {
 	switch s {
-	case "connecting", "refreshing":
-		return "Connecting..."
+	case "timeout":
+		return "QR EXPIRED — REFRESHING…"
+	case "refreshing":
+		return "REFRESHING QR…"
+	case "connecting":
+		return "CONNECTING…"
 	case "qr", "qr_code":
-		return "Scan this code with WhatsApp"
+		return ""
 	case "logged_in", "success", "connected":
-		return "Logged in"
+		return "LOGGED IN"
 	default:
 		if s == "" {
-			return "Waiting for QR code..."
+			return ""
 		}
-		return s
+		return strings.ToUpper(s)
 	}
 }
 
@@ -96,7 +103,7 @@ func (ls *LoginScreen) setQR(code string) {
 	fyne.Do(func() {
 		ls.qrImg.Resource = res
 		ls.qrImg.Refresh()
-		ls.status.Text = "Scan this code with WhatsApp"
+		ls.status.Text = ""
 		ls.status.Refresh()
 	})
 }
@@ -104,79 +111,80 @@ func (ls *LoginScreen) setQR(code string) {
 func waLogo(size float32) fyne.CanvasObject {
 	img := canvas.NewImageFromResource(resourceWALogo)
 	img.FillMode = canvas.ImageFillContain
-	img.SetMinSize(fyne.NewSize(size, size))
-	return container.NewCenter(container.NewGridWrap(fyne.NewSize(size, size), img))
+	return container.NewGridWrap(fyne.NewSize(size, size), img)
 }
 
-func instructionLine(prefix, bold, suffix string) fyne.CanvasObject {
-	a := canvas.NewText(prefix, textBody)
-	a.TextSize = 16
-	b := canvas.NewText(bold, textDark)
-	b.TextSize = 16
-	b.TextStyle = fyne.TextStyle{Bold: true}
-	c := canvas.NewText(suffix, textBody)
-	c.TextSize = 16
-	return container.NewHBox(a, b, c)
+func txt(s string, size float32, col color.NRGBA, bold bool) *canvas.Text {
+	t := canvas.NewText(s, col)
+	t.TextSize = size
+	t.TextStyle = fyne.TextStyle{Bold: bold}
+	return t
+}
+
+
+func rich(parts ...fyne.CanvasObject) fyne.CanvasObject {
+	c := container.NewHBox()
+	for _, p := range parts {
+		c.Add(p)
+	}
+	return c
 }
 
 func (ls *LoginScreen) Content() fyne.CanvasObject {
-	title := canvas.NewText("Log in to WhatsApp", textDark)
-	title.TextSize = 24
-
-	header := container.NewHBox(container.NewCenter(container.NewGridWrap(fyne.NewSize(40, 40), waLogo(40))), widget.NewLabel("  "), container.NewCenter(title))
-
-	steps := container.NewVBox(
-		canvas.NewText("1. Open WhatsApp on your phone", textBody),
-		instructionLine("2. Tap ", "Menu", " or "),
-		func() fyne.CanvasObject {
-			t := instructionLine("   ", "Settings", "")
-			return t
-		}(),
-		instructionLine("3. Select ", "Linked Devices", ""),
-		canvas.NewText("4. Point your phone at this screen", textBody),
+	header := container.NewHBox(
+		waLogo(40),
+		canvas.NewRectangle(color.Transparent), // gap
+		txt("Log in to WhatsApp", 24, titleGray, false), // font-light approx
 	)
-	for _, o := range steps.Objects {
-		if t, ok := o.(*canvas.Text); ok {
-			t.TextSize = 16
-		}
-	}
 
-	left := container.NewVBox(
+	// list-decimal style steps, matching React text
+	steps := container.NewVBox(
+		rich(txt("1. ", 18, textGray, false), txt("Open WhatsApp on your phone", 18, textGray, false)),
+		rich(txt("2. ", 18, textGray, false), txt("Tap ", 18, textGray, false), txt("Menu", 18, boldGray, true), txt(" or ", 18, textGray, false), txt("Settings", 18, boldGray, true)),
+		rich(txt("3. ", 18, textGray, false), txt("Select ", 18, textGray, false), txt("Linked Devices", 18, boldGray, true)),
+		rich(txt("4. ", 18, textGray, false), txt("Point your phone at this screen", 18, textGray, false)),
+	)
+
+	// space-y-4 approx
+	leftInner := container.NewVBox(
 		container.NewPadded(header),
-		widget.NewLabel(""),
+		container.NewGridWrap(fyne.NewSize(0, 24), canvas.NewRectangle(color.Transparent)),
 		container.NewPadded(steps),
 	)
+	left := container.NewPadded(container.NewPadded(leftInner))
 
-	qrBg := canvas.NewRectangle(color.White)
-	qrBg.StrokeColor = borderGray
-	qrBg.StrokeWidth = 1
-	qrBg.CornerRadius = 8
-	qrInner := container.NewPadded(ls.qrImg)
-	qrCard := container.NewMax(qrBg, qrInner)
+	qrWhite := canvas.NewRectangle(color.White)
+	qrWhite.CornerRadius = 8
+		qrBox := container.NewMax(qrWhite, container.NewPadded(container.NewPadded(ls.qrImg)))
 
-	right := container.NewVBox(
-		container.NewCenter(container.NewGridWrap(fyne.NewSize(280, 280), qrCard)),
-		widget.NewLabel(""),
+	scanText := txt("Scan this QR code with the WhatsApp app", 14, mutedGray, false)
+	scanText.Alignment = fyne.TextAlignCenter
+
+	rightInner := container.NewVBox(
+		container.NewCenter(container.NewGridWrap(fyne.NewSize(280, 280), qrBox)),
+		container.NewGridWrap(fyne.NewSize(0, 16), canvas.NewRectangle(color.Transparent)),
+		container.NewCenter(scanText),
+		container.NewGridWrap(fyne.NewSize(0, 12), canvas.NewRectangle(color.Transparent)),
 		container.NewCenter(ls.status),
 	)
+	right := container.NewPadded(container.NewCenter(container.NewPadded(rightInner)))
 
-	divider := canvas.NewRectangle(borderGray)
+	divider := canvas.NewRectangle(borderDiv)
 	divider.SetMinSize(fyne.NewSize(1, 0))
 
-	body := container.NewBorder(nil, nil, nil, nil,
-		container.NewHBox(
-			container.NewGridWrap(fyne.NewSize(430, 420), container.NewPadded(left)),
-			divider,
-			container.NewGridWrap(fyne.NewSize(430, 420), container.NewPadded(container.NewCenter(right))),
-		),
+	// max-w-[900px] h-[520px] approx
+	body := container.NewHBox(
+		container.NewGridWrap(fyne.NewSize(449, 520), left),
+		divider,
+		container.NewGridWrap(fyne.NewSize(450, 520), right),
 	)
 
 	cardBg := canvas.NewRectangle(cardWhite)
-	cardBg.StrokeColor = borderGray
+	cardBg.CornerRadius = 8
+	cardBg.StrokeColor = borderLight
 	cardBg.StrokeWidth = 1
-	cardBg.CornerRadius = 10
-	card := container.NewMax(cardBg, container.NewPadded(body))
+	card := container.NewMax(cardBg, body)
 
 	pageBg := canvas.NewRectangle(bgPage)
-	return container.NewMax(pageBg, container.NewCenter(container.NewGridWrap(fyne.NewSize(900, 480), card)))
+	return container.NewMax(pageBg, container.NewCenter(container.NewGridWrap(fyne.NewSize(900, 520), card)))
 }
