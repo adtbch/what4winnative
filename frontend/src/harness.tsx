@@ -67,6 +67,7 @@ useChatStore.getState().setChats(
 const HEADER_SCENES = new Set(["chatheader", "chatheader-group"])
 const BUBBLE_SCENES = new Set(["bubble-sent","bubble-recv","bubble-group","bubble-emoji","bubble-edited"])
 const MEDIA_SCENES = new Set(["media-image","media-video","media-sticker","media-audio","media-document"])
+const COMPOSER_SCENES = new Set(["composer"])
 
 function Scenes() {
   if (scene === "chatheader" || scene === "chatheader-group") {
@@ -145,6 +146,23 @@ function Scenes() {
           {video && <div className="absolute inset-0 flex items-center justify-center"><div className="w-14 h-14 rounded-full flex items-center justify-center text-white text-[34px]" style={{background:'rgba(11,20,26,0.63)'}} data-media-play>▶</div></div>}
         </div>
         <div className="flex justify-end px-2 pb-1"><span className="text-[11px] opacity-60">10:05</span></div>
+      </div>
+    </div>
+  }
+  if (COMPOSER_SCENES.has(scene)) {
+    // Static spec from ChatInput.tsx:419-566 (wails-free). dark: pill bg #242626, send bg green #1b9a58.
+    return <div className="w-[520px] bg-[#0b141a]" data-composer-scene={scene}>
+      <div className="mx-3 mb-3 mt-1.5">
+        <div className="flex items-end gap-2">
+          <div className="flex flex-1 items-center rounded-full border border-transparent bg-[#242626] px-1.5" data-comp-pill>
+            <div className="p-2" data-comp-emoji><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8696a0" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg></div>
+            <div className="flex-1 p-2 text-gray-500" data-comp-input style={{minHeight:40}}>Message</div>
+            <div className="p-2" data-comp-attach><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8696a0" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg></div>
+          </div>
+          <div className="mb-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#1b9a58] text-white" data-comp-send>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+          </div>
+        </div>
       </div>
     </div>
   }
@@ -645,6 +663,15 @@ function collect() {
         name: info(pick('[data-doc-name]')),
         isSticker: scene==='media-sticker',
       }
+    }
+  }
+  if (COMPOSER_SCENES.has(scene)) {
+    const root = document.querySelector('#root [data-composer-scene]') as HTMLElement | null
+    if (root) {
+      const rr = root.getBoundingClientRect()
+      const pick = (sel: string) => root.querySelector(sel) as HTMLElement | null
+      const info = (el: HTMLElement | null) => el ? (()=>{const r=el.getBoundingClientRect(); const cs=getComputedStyle(el); return {x:Math.round(r.x-rr.x),y:Math.round(r.y-rr.y),w:Math.round(r.width),h:Math.round(r.height),bg:cs.backgroundColor,borderRadius:cs.borderRadius,color:cs.color,fontSize:cs.fontSize,padding:cs.padding}})() : null
+      out.composer = { scene, pill: info(pick('[data-comp-pill]')), send: info(pick('[data-comp-send]')), emoji: info(pick('[data-comp-emoji]')), attach: info(pick('[data-comp-attach]')), input: info(pick('[data-comp-input]')) }
     }
   }
 

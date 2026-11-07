@@ -16,15 +16,15 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
 
 ## Progress
 
-**12 / 15 task selesai** — 12 / 26 komponen terverifikasi.
+**13 / 15 task selesai** — 12 / 26 komponen terverifikasi.
 
 | Fase | Selesai | Total |
 |---|---|---|
 | 0 — Fondasi | 3 | 3 |
 | 1 — Sidebar | 5 | 5 |
-| 2 — Chat | 4 | 5 |
+| 2 — Chat | 5 | 5 |
 | 3 — Panel & layar | 0 | 2 |
-| **Total** | **12** | **15** |
+| **Total** | **13** | **15** |
 
 ---
 
@@ -168,13 +168,13 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
   - [~] belum diekstrak ke `fyneui/message_list.go`; spacing run `pt-2` first-in-group belum eksplisit (polish). `TestBuildListItems*`/`TestDaySeparatorGolden` file terpisah belum ada
   - Spec: `MessageList.tsx:140-175,57-65` · File: `fyneui/chatview.go`,`fyneui/media_fetch.go`
 
-- [ ] **T13 · Composer**
-  - [ ] `newComposer(onSend, onEmoji, onAttach)` + `Text()`/`Clear()`
-  - [ ] luar `mx-3 mb-3 mt-1.5`, pill `rounded-full bg-[#242626] px-1.5`, emoji kiri, attach kanan, kirim `h-11 w-11 rounded-full bg-[#1b9a58]` terpisah
-  - [ ] Enter kirim, Shift+Enter baris baru, `OnSubmitted` → `send()`
-  - [ ] `TestComposerGolden` + `TestComposerSendClears` PASS · PNG `composer.png` diperiksa
-  - [ ] commit `feat(fyne): composer component with golden and send-behavior tests`
-  - Spec: `ChatInput.tsx:419-566` · File: `fyneui/composer.go`
+- [x] **T13 · Composer** — `95d368e`
+  - [x] `newComposer(onSend, onEmoji, onAttach) (obj,*widget.Entry)`; pill `#242626 waPanel2` r-full px-6, emoji/attach 20px muted, send circle 44px `#1b9a58 waAccent` terpisah (gap 8, mb)
+  - [x] Enter/submit → `onSend(trimmed)` + clear; empty no-op. `ChatView.Content` pakai composer (send via `sendText`)
+  - [x] `TestComposerSendClears`,`TestComposerGolden`(pill n≥5000, accent ≥200px),`TestComposerPlaceholder` PASS. PNG `fyneui/testdata/out/composer.png`
+  - [x] React spec harness DOM+PNG: pill 444×42 `rgb(36,38,38)` r-full pad `0 6`, send 44×44 `rgb(27,154,88)` (`fyneui/testdata/react/composer_dark_520x120.png`)
+  - Limit: mention/paste image/attach menu/emoji picker/reply/file preview (YAGNI, stateful+wails) belum; Shift+Enter multiline = perilaku `widget.Entry` default
+  - Spec: `ChatInput.tsx:419-566` · File: `fyneui/composer.go`,`chatview.go`
 
 ---
 

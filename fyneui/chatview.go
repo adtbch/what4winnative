@@ -15,7 +15,6 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/lugvitc/whats4linux/api"
@@ -536,12 +535,11 @@ func daySeparator(label string) fyne.CanvasObject {
 	return container.NewCenter(container.NewPadded(box))
 }
 
-func (cv *ChatView) sendMessage() {
-	text := strings.TrimSpace(cv.entry.Text)
+func (cv *ChatView) sendText(text string) {
+	text = strings.TrimSpace(text)
 	if text == "" {
 		return
 	}
-	cv.entry.SetText("")
 	go func() {
 		if _, err := cv.fa.api.SendMessage(cv.jid, api.MessageContent{Type: "text", Text: text}); err != nil {
 			log.Println("SendMessage:", err)
@@ -558,63 +556,13 @@ func (cv *ChatView) Content() fyne.CanvasObject {
 	cv.scroll = container.NewVScroll(container.New(&padLayout{h: 0, v: 6}, cv.messages))
 	body := container.NewMax(chatBackground(fyne.NewSize(0, 0)), cv.scroll)
 
-	// Composer (ChatInput.tsx): a rounded pill (emoji left, attach right) with
-	// the send button as a separate green circle outside it.
-	cv.entry = widget.NewMultiLineEntry()
-	cv.entry.SetPlaceHolder("Type a message")
-	cv.entry.Wrapping = fyne.TextWrapWord
-	cv.entry.SetMinRowsVisible(1)
-	cv.entry.OnSubmitted = func(string) { cv.sendMessage() }
-
-	emojiBtn := newIconButton("cv-emoji", iconEmoji, 20, waMuted, func() {})
-	attachBtn := newIconButton("cv-attach", iconAttach, 20, waMuted, func() {})
-
-	pillBg := canvas.NewRectangle(waPanel2)
-	pillBg.CornerRadius = 22
-	pill := container.NewMax(pillBg, container.New(&padLayout{h: 6, v: 4},
-		container.NewBorder(nil, nil,
-			container.NewHBox(container.NewPadded(emojiBtn)), nil,
-			container.NewBorder(nil, nil, nil, container.NewPadded(attachBtn), cv.entry))))
-
-	send := newSendButton(func() { cv.sendMessage() })
-
-	row := container.NewBorder(nil, nil, nil, send, pill)
+	comp, entry := newComposer(func(s string) { cv.sendText(s) }, func() {}, func() {})
+	cv.entry = entry
 	footerBg := canvas.NewRectangle(waPanel)
-	footer := container.NewMax(footerBg, container.New(&padLayout{h: 12, v: 6},
-		container.NewBorder(nil, spacer(1, 4), nil, nil, row)))
+	footer := container.NewMax(footerBg, comp)
 
 	return container.NewBorder(header, footer, nil, nil, body)
 }
-
-// newSendButton is ChatInput.tsx's 44px green circle with the paper-plane.
-func newSendButton(onTap func()) fyne.CanvasObject {
-	circle := canvas.NewCircle(waAccent)
-	icon := iconImage("cv-send", iconSend, 20, waWhite)
-	btn := newTapArea(onTap)
-	inner := container.NewMax(circle, container.NewCenter(icon), btn)
-	return container.NewGridWrap(fyne.NewSize(44, 44), inner)
-}
-
-type tapArea struct {
-	widget.BaseWidget
-	onTap func()
-}
-
-func newTapArea(onTap func()) *tapArea {
-	t := &tapArea{onTap: onTap}
-	t.ExtendBaseWidget(t)
-	return t
-}
-
-func (t *tapArea) CreateRenderer() fyne.WidgetRenderer {
-	return widget.NewSimpleRenderer(canvas.NewRectangle(color.Transparent))
-}
-func (t *tapArea) Tapped(*fyne.PointEvent) {
-	if t.onTap != nil {
-		t.onTap()
-	}
-}
-func (t *tapArea) Cursor() desktop.Cursor { return desktop.PointerCursor }
 
 func minF(a, b float32) float32 {
 	if a < b {
