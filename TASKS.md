@@ -188,11 +188,12 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
   - Limit: Search/Mute/Media, participants, block/exit = polish/YAGNI
   - Spec: `ChatInfo.tsx` · File: `fyneui/chat_info.go`,`chatview.go`
 
-- [ ] **T14b · Settings screen**
-  - [ ] `newSettingsScreen(onBack)`: header + back, baris Account/Privacy/Chats/Notifications/Advanced/Log out (ikon + chevron, tap = stub log)
-  - [ ] `TestSettingsScreenGolden` PASS · PNG `settings.png` diperiksa
-  - [ ] commit `feat(fyne): settings screen scaffold`
-  - Spec: `SettingsScreen.tsx` · File: `fyneui/settings.go`
+- [x] **T14b · Settings screen** — `9b91fff`
+  - [x] `newSettingsScreen(onBack)`: header+back, rows Account/Privacy/Chats/Notifications/Advanced/Log out (icon+chevron, tap=stub log); Log out danger red
+  - [x] wired rail Settings → `OpenSettings()` (stack replace) + back → `SwitchToChats()`
+  - [x] `TestSettingsScreenGolden,Rows` PASS; PNG `fyneui/testdata/out/settings.png` (local)
+  - Limit: sub-screens General/Account/Privacy/Chats/Notifications/Shortcuts/Help/Advanced/LogOut (SettingsScreen.tsx penuh, banyak state+wails) = scaffold/YAGNI
+  - Spec: `SettingsScreen.tsx` · File: `fyneui/settings.go`,`app.go`
 
 ---
 

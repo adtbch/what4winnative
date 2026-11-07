@@ -82,7 +82,7 @@ func (fa *FyneApp) OpenEmptyChat() {
 	})
 }
 
-func railItem(path string, name string, active bool, badge int) fyne.CanvasObject {
+func railItem(path string, name string, active bool, badge int, onTap func()) fyne.CanvasObject {
 	fg := waRailIcon
 	if active {
 		fg = waText
@@ -108,6 +108,9 @@ func railItem(path string, name string, active bool, badge int) fyne.CanvasObjec
 		badgeObj := container.NewGridWrap(fyne.NewSize(18, 18), container.NewMax(bbg, container.NewCenter(bt)))
 		wrap = container.NewMax(wrap, container.NewWithoutLayout(badgeObj))
 	}
+	if onTap != nil {
+		wrap = container.NewMax(wrap, &tapArea{onTap: onTap})
+	}
 	return wrap
 }
 
@@ -121,16 +124,16 @@ func (fa *FyneApp) rail() fyne.CanvasObject {
 	railBg := canvas.NewRectangle(waRail)
 	top := container.NewVBox(
 		spacer(1, 10),
-		container.NewCenter(railItem(iconChats, "rail-chats", true, 0)),
+		container.NewCenter(railItem(iconChats, "rail-chats", true, 0, nil)),
 		spacer(1, 2),
-		container.NewCenter(railItem(iconStatus, "rail-status", false, 0)),
+		container.NewCenter(railItem(iconStatus, "rail-status", false, 0, nil)),
 		spacer(1, 2),
-		container.NewCenter(railItem(iconChannels, "rail-channels", false, 0)),
+		container.NewCenter(railItem(iconChannels, "rail-channels", false, 0, nil)),
 		spacer(1, 2),
-		container.NewCenter(railItem(iconCommunities, "rail-communities", false, 0)),
+		container.NewCenter(railItem(iconCommunities, "rail-communities", false, 0, nil)),
 	)
 	bottom := container.NewVBox(
-		container.NewCenter(railItem(iconSettings, "rail-settings", false, 0)),
+		container.NewCenter(railItem(iconSettings, "rail-settings", false, 0, func(){ fa.OpenSettings() })),
 		spacer(1, 10),
 		container.NewCenter(railAvatar()),
 		spacer(1, 12),
@@ -303,3 +306,12 @@ func (l *mainSplitLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 }
 
 var _ = color.Transparent
+
+
+func (fa *FyneApp) OpenSettings() {
+	fyne.Do(func() {
+		scr := newSettingsScreen(func() { fa.SwitchToChats() })
+		fa.stack.Objects = []fyne.CanvasObject{scr}
+		fa.stack.Refresh()
+	})
+}
