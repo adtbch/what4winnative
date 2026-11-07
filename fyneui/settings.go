@@ -31,6 +31,7 @@ type settingsScreen struct {
 	widget.BaseWidget
 	onBack func()
 	rows   []settingsRow
+	root   *fyne.Container
 }
 
 func newSettingsScreen(onBack func()) *settingsScreen {
@@ -39,7 +40,34 @@ func newSettingsScreen(onBack func()) *settingsScreen {
 	return s
 }
 
-func (s *settingsScreen) CreateRenderer() fyne.WidgetRenderer {
+func (s *settingsScreen) showDetail(title string, danger bool) {
+	bg := canvas.NewRectangle(waBg)
+	back := newIconHit("setd-back", iconBack, 20, 40, waMuted, func() { s.showList() })
+	h := canvas.NewText(title, waText)
+	h.TextSize = 20
+	h.TextStyle = fyne.TextStyle{Bold: true}
+	header := container.New(&padLayout{h: 12, v: 10}, container.NewHBox(back, container.NewPadded(h)))
+	msg := "This section is not implemented yet (scaffold)."
+	if danger {
+		msg = "Log out is available from the main app flow (scaffold)."
+	}
+	body := canvas.NewText(msg, waMuted)
+	body.TextSize = 14
+	page := container.NewBorder(header, nil, nil, nil, container.NewCenter(container.NewPadded(body)))
+	fyne.Do(func() {
+		s.root.Objects = []fyne.CanvasObject{container.NewMax(bg, page)}
+		s.root.Refresh()
+	})
+}
+
+func (s *settingsScreen) showList() {
+	fyne.Do(func() {
+		s.root.Objects = []fyne.CanvasObject{s.listPage()}
+		s.root.Refresh()
+	})
+}
+
+func (s *settingsScreen) listPage() fyne.CanvasObject {
 	bg := canvas.NewRectangle(waBg)
 	back := newIconHit("set-back", iconBack, 20, 40, waMuted, s.onBack)
 	title := canvas.NewText("Settings", waText)
@@ -61,7 +89,7 @@ func (s *settingsScreen) CreateRenderer() fyne.WidgetRenderer {
 		lbl.TextSize = 15
 		chev := canvas.NewText("›", waMuted)
 		chev.TextSize = 18
-		tap := &tapArea{onTap: func() { log.Println("settings stub:", row.Label) }}
+		tap := &tapArea{onTap: func() { log.Println("settings:", row.Label); s.showDetail(row.Label, row.Danger) }}
 		line := container.NewBorder(nil, nil, container.NewPadded(ic), container.NewPadded(chev),
 			container.New(&padLayout{h: 4, v: 10}, lbl))
 		items = append(items, container.NewMax(tap, line))
@@ -71,7 +99,12 @@ func (s *settingsScreen) CreateRenderer() fyne.WidgetRenderer {
 	}
 	list := container.NewVScroll(container.NewVBox(items...))
 	content := container.NewBorder(container.NewVBox(header, hLine), nil, nil, nil, container.NewPadded(list))
-	return widget.NewSimpleRenderer(container.NewMax(bg, content))
+	return container.NewMax(bg, content)
+}
+
+func (s *settingsScreen) CreateRenderer() fyne.WidgetRenderer {
+	s.root = container.NewMax(s.listPage())
+	return widget.NewSimpleRenderer(s.root)
 }
 
 func (s *settingsScreen) MinSize() fyne.Size { return fyne.NewSize(420, 400) }
