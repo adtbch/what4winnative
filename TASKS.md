@@ -16,11 +16,11 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
 
 ## Progress
 
-**4 / 15 task selesai** — 0 / 26 komponen terverifikasi.
+**5 / 15 task selesai** — 0 / 26 komponen terverifikasi.
 
 | Fase | Selesai | Total |
 |---|---|---|
-| 0 — Fondasi | 4 | 4 |
+| 0 — Fondasi | 5 | 5 |
 | 1 — Sidebar | 0 | 6 |
 | 2 — Chat | 0 | 4 |
 | 3 — Panel & layar | 0 | 2 |
@@ -59,12 +59,13 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
 
 ## Fase 1 — Sidebar
 
-- [ ] **T4 · Sidebar header**
-  - [ ] `newSidebarHeader(onNewChat, onMenu)` + `SetSelfAvatar`
-  - [ ] `h-16` (64px), judul `text-xl font-bold`, 2 tombol ikon `p-2 rounded-full`, avatar 32px, border bawah `white/5`
-  - [ ] `TestSidebarHeaderGolden` PASS · PNG `sidebar_header.png` diperiksa
-  - [ ] `topBar()` lama di `sidebar.go` dihapus, `loadSelfAvatar` arahkan ke header baru
-  - [ ] commit `feat(fyne): sidebar header component with golden test`
+- [x] **T4 · Sidebar header** — commit `225d7ee`
+  - [x] `newSidebarHeader(onNewChat, onMenu)` + `SetSelfAvatar`
+  - [x] `h-16` (64px), judul `text-xl font-bold`, 2 tombol ikon `p-2 rounded-full`, avatar 32px, border bawah `white/5`
+  - [x] geometri **terukur**: row h **64** (63 + 1px border), padding **0 16**, title **20px/700/#fff**, tombol **40x40** (icon 24, gap 4), avatar **32** + `ml-2` 8
+  - [x] `TestSidebarHeaderGeometryMatchesReact`, `TestSidebarHeaderActionsGeometry`, `TestSidebarHeaderCallbacks` PASS · PNG `sidebar_header.png` diperiksa (title pixel-identik: y 25–44, h 20)
+  - [x] `topBar()` lama di `sidebar.go` dihapus, `loadSelfAvatar` arahkan ke header baru
+  - [x] `iconNewChat` diperbaiki: React `NewChatIcon` = balon chat dua garis, bukan tanda `+`
   - Spec: `ChatScreen.tsx:50-70` · File: `fyneui/sidebar_header.go`
 
 - [x] **T5 · View tabs (chats/communities/channels/status)** — commit `04cfcd1`
