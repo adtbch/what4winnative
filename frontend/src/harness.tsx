@@ -230,6 +230,57 @@ function collect() {
     }
   }
 
+  // Search bar: outer px-3 py-2, inner rounded-full pill with icon + input.
+  const searchInput = document.querySelector(
+    '#root input[placeholder="Search or start new chat"]',
+  ) as HTMLInputElement | null
+  if (searchInput) {
+    const pill = searchInput.parentElement as HTMLElement
+    const outer = pill.parentElement as HTMLElement
+    const icon = pill.firstElementChild as HTMLElement
+    const or = outer.getBoundingClientRect()
+    const pr = pill.getBoundingClientRect()
+    const ir = icon.getBoundingClientRect()
+    const os = getComputedStyle(outer)
+    const ps = getComputedStyle(pill)
+    const is_ = getComputedStyle(icon)
+    const ins = getComputedStyle(searchInput)
+    const svg = icon.querySelector("svg")
+    const sr = svg?.getBoundingClientRect()
+    out.search = {
+      outer: {
+        h: Math.round(or.height),
+        w: Math.round(or.width),
+        padding: os.padding,
+        bg: os.backgroundColor,
+      },
+      pill: {
+        x: Math.round(pr.x),
+        y: Math.round(pr.y),
+        w: Math.round(pr.width),
+        h: Math.round(pr.height),
+        padding: ps.padding,
+        radius: ps.borderRadius,
+        bg: ps.backgroundColor,
+        gap: ps.gap,
+      },
+      icon: {
+        x: Math.round(ir.x),
+        w: Math.round(ir.width),
+        h: Math.round(ir.height),
+        marginRight: is_.marginRight,
+        color: is_.color,
+        svg: sr ? Math.round(sr.width) : null,
+      },
+      input: {
+        fontSize: ins.fontSize,
+        lineHeight: ins.lineHeight,
+        color: ins.color,
+        placeholderColor: ins.getPropertyValue("--tw-placeholder-color"),
+      },
+    }
+  }
+
   const pre = document.getElementById("metrics")
   if (pre) pre.textContent = JSON.stringify(out, null, 2)
   ;(window as unknown as { __PARITY__: unknown }).__PARITY__ = out

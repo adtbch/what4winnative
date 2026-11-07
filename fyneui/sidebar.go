@@ -39,7 +39,7 @@ type Sidebar struct {
 	list      *widget.List
 	root      fyne.CanvasObject
 	tabs      *viewTabs
-	searchBox fyne.CanvasObject
+	searchBox *searchBar
 	archivedR fyne.CanvasObject
 	statusLbl *canvas.Text
 	header    *sidebarHeader
@@ -118,7 +118,12 @@ func (s *Sidebar) topBar() fyne.CanvasObject {
 		s.refreshVisible()
 	})
 
-	s.searchBox = s.searchBar()
+	s.searchBox = newSearchBar("Search or start new chat", func(v string) {
+		s.mu.Lock()
+		s.search = v
+		s.mu.Unlock()
+		s.refreshVisible()
+	})
 	s.archivedR = s.archivedRow()
 
 	return container.NewVBox(s.header, s.tabs, s.searchBox, s.archivedR)
@@ -132,23 +137,15 @@ func (s *Sidebar) body() fyne.CanvasObject {
 	return container.NewMax(s.list, placeholder)
 }
 
-func (s *Sidebar) searchBar() fyne.CanvasObject {
-	ent := widget.NewEntry()
-	ent.SetPlaceHolder("Search or start new chat")
-	ent.OnChanged = func(v string) {
-		s.mu.Lock()
-		s.search = v
-		s.mu.Unlock()
-		s.refreshVisible()
+// searchPlaceholder mirrors the ternary chain in ChatScreen.tsx:847-854.
+func searchPlaceholder(view string) string {
+	switch view {
+	case "communities":
+		return "Search communities"
+	case "channels":
+		return "Search channels"
 	}
-	bg := canvas.NewRectangle(waPanel2)
-	bg.CornerRadius = 18
-	icon := iconImage("sb-search", iconSearch, 18, waMuted)
-	inner := container.NewBorder(nil, nil,
-		container.NewHBox(container.NewPadded(icon)), nil, ent)
-	box := container.NewMax(bg, container.New(&padLayout{h: 10, v: 5}, inner))
-	wrap := container.New(&padLayout{h: 12, v: 6}, box)
-	return wrap
+	return "Search or start new chat"
 }
 
 func (s *Sidebar) archivedRow() fyne.CanvasObject {
@@ -173,6 +170,7 @@ func (s *Sidebar) syncChrome() {
 			if view == "status" {
 				s.searchBox.Hide()
 			} else {
+				s.searchBox.SetPlaceholder(searchPlaceholder(view))
 				s.searchBox.Show()
 			}
 		}
@@ -478,19 +476,17 @@ func (s *Sidebar) refreshVisible() {
 }
 
 func (s *Sidebar) filterAndSortLocked() []api.ChatElement {
-	term := strings.ToLower(strings.TrimSpace(s.search))
+	// useFilteredChatIds (useChatStore.ts:150-163) lowercases the raw term and
+	// matches the chat NAME only — no TrimSpace, no preview match.
+	term := strings.ToLower(s.search)
 	out := make([]api.ChatElement, 0, len(s.allChats))
 	for _, c := range s.allChats {
 		if s.archived != c.Archived {
 			continue
 		}
 		if s.view == "chats" {
-			if term != "" {
-				name := strings.ToLower(chatDisplayName(c))
-				if !strings.Contains(name, term) &&
-					!strings.Contains(strings.ToLower(htmlPreview(c.LatestMessage)), term) {
-					continue
-				}
+			if term != "" && !strings.Contains(strings.ToLower(chatDisplayName(c)), term) {
+				continue
 			}
 		}
 		out = append(out, c)
