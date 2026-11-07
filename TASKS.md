@@ -21,10 +21,10 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
 | Fase | Selesai | Total |
 |---|---|---|
 | 0 — Fondasi | 5 | 5 |
-| 1 — Sidebar | 0 | 6 |
+| 1 — Sidebar | 0 | 5 |
 | 2 — Chat | 0 | 4 |
 | 3 — Panel & layar | 0 | 2 |
-| **Total** | **3** | **15** |
+| **Total** | **5** | **15** |
 
 ---
 
