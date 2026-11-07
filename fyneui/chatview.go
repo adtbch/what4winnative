@@ -14,6 +14,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/driver/desktop"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/lugvitc/whats4linux/api"
@@ -333,11 +334,17 @@ func (cv *ChatView) textBlock(src string, maxW float32) fyne.CanvasObject {
 	if strings.TrimSpace(htmlToText(src)) == "" {
 		return canvas.NewText(" ", waText)
 	}
-	box, w, _ := htmlTextBlock(src, inner, 14)
+	box, w, h := htmlTextBlock(src, inner, 14)
 	if w < 24 {
 		w = 24
 	}
-	return container.NewGridWrap(fyne.NewSize(minF(w+2, inner), box.MinSize().Height), box)
+	// widget.RichText reports MinSize as text + 2*innerPadding on both axes and
+	// draws the text inset by that padding. Sizing the cell to the bare text
+	// width therefore made RichText wrap every line ~16px early, and using
+	// MinSize().Height left a blank band under the text. Size from the measured
+	// wrap instead and give back the padding it will consume.
+	pad := theme.Current().Size(theme.SizeNameInnerPadding)
+	return container.NewGridWrap(fyne.NewSize(minF(w+pad*2, inner), h+pad*2), box)
 }
 
 func (cv *ChatView) mediaBlock(m store.DecodedMessage, kind int, maxW float32) fyne.CanvasObject {

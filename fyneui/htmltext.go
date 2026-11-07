@@ -18,17 +18,17 @@ import (
 // visual result the React frontend gets from dangerouslySetInnerHTML.
 
 type htmlRun struct {
-	text  string
-	bold  bool
-	ital  bool
+	text   string
+	bold   bool
+	ital   bool
 	strike bool
-	code  bool
-	link  bool
+	code   bool
+	link   bool
 }
 
 var (
-	tagRE     = regexp.MustCompile(`<[^>]*>`)
-	brkRE     = regexp.MustCompile(`(?i)<br\s*/?>`)
+	tagRE      = regexp.MustCompile(`<[^>]*>`)
+	brkRE      = regexp.MustCompile(`(?i)<br\s*/?>`)
 	blockEndRE = regexp.MustCompile(`(?i)</(p|div|li|blockquote|h[1-6])>`)
 )
 
@@ -166,18 +166,17 @@ func wrapRuns(runs []htmlRun, maxW, size float32) [][]htmlRun {
 			if w == "" {
 				continue
 			}
-			ww := runWidth(htmlRun{text: strings.TrimRight(w, " "), bold: r.bold, ital: r.ital}, size)
-			space := float32(0)
-			if lineW > 0 {
-				space = fyne.MeasureText(" ", size, fyne.TextStyle{}).Width
-			}
-			if lineW > 0 && lineW+space+ww > maxW {
+			// Measure the word *with* its trailing space: the segment keeps
+			// that space, so ignoring it made every line overflow by the sum
+			// of its word gaps (one 532px line measured 559px).
+			ww := runWidth(htmlRun{text: w, bold: r.bold, ital: r.ital}, size)
+			if lineW > 0 && lineW+ww > maxW {
 				pushLine()
 				w = strings.TrimLeft(w, " ")
 				if w == "" {
 					continue
 				}
-				ww = runWidth(htmlRun{text: strings.TrimRight(w, " "), bold: r.bold, ital: r.ital}, size)
+				ww = runWidth(htmlRun{text: w, bold: r.bold, ital: r.ital}, size)
 			}
 			nr := r
 			nr.text = w
@@ -211,16 +210,23 @@ func htmlRichText(src string, maxW, size float32) (*widget.RichText, float32, fl
 		curW = 0
 	}
 	for li, line := range lines {
-		if li > 0 {
-			segs = append(segs, &widget.TextSegment{Text: "\n", Style: widget.RichTextStyle{TextStyle: fyne.TextStyle{}}})
-			flushLine()
-		}
-		for _, r := range line {
-			segs = append(segs, &widget.TextSegment{Text: r.text, Style: runStyle(r)})
+		for i, r := range line {
+			st := runStyle(r)
+			// Every segment must be Inline. Fyne treats a non-inline segment as
+			// a paragraph boundary, so the first segment of each line being
+			// non-inline pushed every following word onto its own line. Lines
+			// are already wrapped here, so separate them with a leading newline
+			// instead and let all segments flow inline.
+			st.Inline = true
+			txt := r.text
+			if li > 0 && i == 0 {
+				txt = "\n" + txt
+			}
+			segs = append(segs, &widget.TextSegment{Text: txt, Style: st})
 			curW += runWidth(r, size)
 		}
+		flushLine()
 	}
-	flushLine()
 	rt.Segments = segs
 	rt.Refresh()
 	h := float32(len(lines)) * lineH
@@ -296,3 +302,13 @@ func mediaBox(w, h int) fyne.Size {
 }
 
 var _ = canvas.NewRectangle
+
+// lineWidth measures a wrapped line as it will actually render, trailing
+// spaces included.
+func lineWidth(line []htmlRun, size float32) float32 {
+	var w float32
+	for _, r := range line {
+		w += runWidth(r, size)
+	}
+	return w
+}
