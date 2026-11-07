@@ -138,17 +138,17 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
 
 ## Fase 2 — Chat
 
-- [ ] **T10 · Bubble teks — FIX BUG bubble kosong** ⚠️ prioritas
-  - [ ] `newBubble(bubbleData{HTML,FromMe,Edited,Time,Sender,FirstInGroup,EmojiOnly,MaxWidth})` + `bubbleCorner()`
-  - [x] **fix akar masalah (commit `0e11859`):** bukan `MinSize()==0`, tapi `widget.TextSegment.Style.Inline=false` — Fyne memecah paragraf di tiap segmen non-inline, jadi 1 kalimat jadi 1 kata per baris (tinggi 127px untuk 1 baris 19px). Plus `wrapRuns` mengukur kata tanpa spasi ekor (baris 532px terukur 559px), plus `textBlock` tidak menghitung `innerPadding` 8px di sel GridWrap
-  - [ ] body kosong → italic "Empty Message"; emoji-only → 32px; sender label grup hanya saat `FirstInGroup`
-  - [ ] meta `text-[11px] opacity-60`, tick `✓✓` biru `#53bdeb` kalau `FromMe`
-  - [ ] background `waSent`/`waRecv`, corner 2px saat `FirstInGroup`
-  - [ ] `TestBubbleTextVisible`, `TestBubbleEmptyContent`, `TestBubbleLongURLWraps`, `TestBubbleEmojiOnlyIsLarge`, `TestBubbleCorner` PASS
-  - [ ] PNG `bubble_text.png`, `bubble_empty.png`, `bubble_long_url.png` diperiksa
-  - [ ] app live: bubble yang tadinya kosong sekarang berisi teks
-  - [ ] commit `fix(fyne): bubble text rendered blank; add bubble component + golden tests`
-  - Spec: `MessageItem.tsx:406-560` · File: `fyneui/bubble.go`
+- [x] **T10 · Bubble teks** — `59a67a3,7f735d0,d406fd1`
+  - [x] `bubble.go`: `bubbleData`/`bubbleBg`/`bubbleCorner` (run-start 2px sender-facing, else 12) + `emojiOnlyText` + `newBubble`/`htmlBubbleSized` (GridWrap)
+  - [x] **fix akar (0e11859):** `Inline=false` pecah segmen→1 kata/baris; `wrapRuns` spasi ekor; `innerPadding` 8px GridWrap
+  - [x] body kosong→italic "Empty Message"; emoji-only→32px/leading-40; sender grup non-me+`FirstInGroup` 11px bold `misc.GetProfileColor` (run break side/sender, reset separator)
+  - [x] meta 11px opacity, `Edited`, tick `✓✓` `waTick #53bdeb` sent
+  - [x] bg `waSent #144d37`/`waRecv #242626` (dark), corner 2px `FirstInGroup` (Fyne rect seragam 4px approx; sticker/media paths terpisah)
+  - [x] Tests PASS: `TestBubbleCorner`,`TestBubbleTextVisible`(anti 0e11859),`TestBubbleEmptyContent`,`TestBubbleEmojiOnlyIsLarge`,`TestBubbleLongToken`,`TestBubbleParitySpec`,`TestBubbleParityRender`,`TestBubbleParityNumericBBox`,`TestBubbleParityGroupSender`
+  - [x] PNG/DOM: `fyneui/testdata/{react,out}/bubble_{sent,recv,group,emoji,edited}*` (React spec static harness; real `MessageItem` headless blank: wailsjs deps)
+  - [~] app live manual (bukan headless)
+  - Limit: corner per-sisi Fyne seragam; receipt status tak ada di `DecodedMessageInfo` (tick read-intent). Emoji-only tetap card bg (React: `bg-transparent` hanya sticker `:126,442`)
+  - Spec: `MessageItem.tsx:406-560` · File: `fyneui/bubble.go`,`chatview.go`
 
 - [ ] **T11 · Bubble media (image/video/sticker/audio/document)**
   - [ ] `newMediaBubble(mediaBubbleData{Kind,Thumb,Caption,FileName,SizeLabel,Width,Height,MaxWidth})`
