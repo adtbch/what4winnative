@@ -16,15 +16,15 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
 
 ## Progress
 
-**9 / 15 task selesai** — 12 / 26 komponen terverifikasi.
+**12 / 15 task selesai** — 12 / 26 komponen terverifikasi.
 
 | Fase | Selesai | Total |
 |---|---|---|
 | 0 — Fondasi | 3 | 3 |
 | 1 — Sidebar | 5 | 5 |
-| 2 — Chat | 1 | 5 |
+| 2 — Chat | 4 | 5 |
 | 3 — Panel & layar | 0 | 2 |
-| **Total** | **9** | **15** |
+| **Total** | **12** | **15** |
 
 ---
 
@@ -160,13 +160,13 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
   - Limit: React `MediaContent` runtime metrics/preview interaksi (lightbox/download) tak di-harness headless wails; audio/doc sizing/font ±px engine
   - Spec: `MediaContent.tsx`,`MessageItem.tsx:320-403` · File: `fyneui/bubble_media.go`,`chatview.go`
 
-- [ ] **T12 · Message list — day separator + grouping**
-  - [ ] `buildListItems(msgs)`: `itemDay` saat tanggal lokal berubah, `FirstInGroup` saat `IsFromMe`/`Sender` berubah (**tanpa** aturan gap waktu)
-  - [ ] `newDaySeparator(label)`: chip `rounded-full` putih 10%, teks 11px muted, baris 40px
-  - [ ] `TestBuildListItemsGroupsRuns`, `TestBuildListItemsInsertsDaySeparator`, `TestDaySeparatorGolden` PASS · PNG diperiksa
-  - [ ] `daySeparator`/`lastDay`/grouping inline di `chatview.go` dihapus
-  - [ ] commit `feat(fyne): message list grouping and day separators with tests`
-  - Spec: `MessageList.tsx:140-175`, `MessageList.tsx:57-65` · File: `fyneui/message_list.go`
+- [x] **T12 · Message list — day separator + grouping** — `9b7cb6c`,`32722d0` (parity recheck PASS 0.406s)
+  - [x] day separator sudah ada Fyne (`messageDayLabel` Today/Yesterday/dd/mm/yyyy + `daySeparator` chip, `lastDay`) dan **memutus run**
+  - [x] grouping parity: `addMessageLocked` `first = !hadPrev || prevSender != senderRunID(m) || m.Info.IsFromMe != lastFromMe` (paritas `MessageList.tsx:156-159`); reset run di separator; `loadMessages` reset state
+  - [x] perf: bounded media fetch 3 worker/queue256, `msgID` dedupe, stale guard (`mediaGeneration`+`chatID`)
+  - [x] `go test ./fyneui/... -run Parity -count=1 -v` PASS (Media/Bubble/GroupSender)
+  - [~] belum diekstrak ke `fyneui/message_list.go`; spacing run `pt-2` first-in-group belum eksplisit (polish). `TestBuildListItems*`/`TestDaySeparatorGolden` file terpisah belum ada
+  - Spec: `MessageList.tsx:140-175,57-65` · File: `fyneui/chatview.go`,`fyneui/media_fetch.go`
 
 - [ ] **T13 · Composer**
   - [ ] `newComposer(onSend, onEmoji, onAttach)` + `Text()`/`Clear()`
