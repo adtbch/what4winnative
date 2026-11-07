@@ -66,6 +66,7 @@ useChatStore.getState().setChats(
 
 const HEADER_SCENES = new Set(["chatheader", "chatheader-group"])
 const BUBBLE_SCENES = new Set(["bubble-sent","bubble-recv","bubble-group","bubble-emoji","bubble-edited"])
+const MEDIA_SCENES = new Set(["media-image","media-video","media-sticker","media-audio","media-document"])
 
 function Scenes() {
   if (scene === "chatheader" || scene === "chatheader-group") {
@@ -108,6 +109,44 @@ function Scenes() {
         </div>
       </div>
     )
+  }
+  if (MEDIA_SCENES.has(scene)) {
+    // Static spec scenes mirroring MessageItem.tsx/MediaContent.tsx tokens (wails-free).
+    // dark bg #0b141a; sent bubble #144d37, recv #242626; sticker bg-transparent (MessageItem:442); doc chip red-500.
+    if (scene === 'media-sticker') {
+      return <div className="w-[360px] bg-[#0b141a] p-4 flex justify-end" data-media-scene={scene}>
+        <div className="bg-transparent" data-media-bubble><div data-media-ph className="w-[150px] h-[150px] flex items-center justify-center text-xs text-white/50">Sticker</div></div>
+      </div>
+    }
+    if (scene === 'media-audio') {
+      return <div className="w-[360px] bg-[#0b141a] p-4 flex justify-start" data-media-scene={scene}>
+        <div className="max-w-[85%] rounded-xl px-2 pt-1 pb-1.5 bg-[#242626]" data-media-bubble>
+          <div className="flex items-center gap-2 p-1" data-media-ph><div className="w-9 h-9 rounded-full bg-[#1b9a58] flex items-center justify-center text-white" data-media-play>▶</div><div className="text-[13px] text-white/60">Audio message</div></div>
+          <div className="flex justify-end"><span className="text-[11px] opacity-60">10:05</span></div>
+        </div>
+      </div>
+    }
+    if (scene === 'media-document') {
+      return <div className="w-[420px] bg-[#0b141a] p-4 flex justify-start" data-media-scene={scene}>
+        <div className="max-w-[85%] rounded-xl px-2 pt-1 pb-1.5 bg-[#242626]" data-media-bubble>
+          <div className="flex items-center gap-3 bg-black/5 p-2 rounded-lg min-w-60" data-media-ph>
+            <div className="w-10 h-12 bg-red-500 rounded flex items-center justify-center text-white font-bold text-[10px]" data-doc-chip>PDF</div>
+            <div className="flex-1 min-w-0 text-left"><div className="truncate font-medium text-sm text-gray-100" data-doc-name>invoice-report.pdf</div><div className="text-xs opacity-60 text-gray-400">Document</div></div>
+          </div>
+          <div className="flex justify-end mt-0.5"><span className="text-[11px] opacity-60">10:05</span></div>
+        </div>
+      </div>
+    }
+    const video = scene === 'media-video'
+    return <div className="w-[360px] bg-[#0b141a] p-4 flex justify-start" data-media-scene={scene}>
+      <div className="max-w-[85%] rounded-xl overflow-hidden bg-[#242626] relative" data-media-bubble>
+        <div className="rounded-lg flex items-center justify-center text-white/50 text-xs relative" style={{width:300,height:200,background:'#242626'}} data-media-ph>
+          {video ? '🎥 Video' : '📷 Photo'}
+          {video && <div className="absolute inset-0 flex items-center justify-center"><div className="w-14 h-14 rounded-full flex items-center justify-center text-white text-[34px]" style={{background:'rgba(11,20,26,0.63)'}} data-media-play>▶</div></div>}
+        </div>
+        <div className="flex justify-end px-2 pb-1"><span className="text-[11px] opacity-60">10:05</span></div>
+      </div>
+    </div>
   }
   return <ChatListScreen onOpenSettings={() => {}} />
 }
@@ -588,6 +627,23 @@ function collect() {
         sender: sender ? { text: (sender.textContent||'').trim(), color: getComputedStyle(sender).color, fontSize: getComputedStyle(sender).fontSize } : null,
         tick: tick ? { color: getComputedStyle(tick).color } : null,
         fromMe: /bubble-sent|bubble-emoji|bubble-edited/.test(scene),
+      }
+    }
+  }
+  if (MEDIA_SCENES.has(scene)) {
+    const root = document.querySelector('#root [data-media-scene]') as HTMLElement | null
+    if (root) {
+      const rr = root.getBoundingClientRect()
+      const pick = (sel: string) => root.querySelector(sel) as HTMLElement | null
+      const info = (el: HTMLElement | null) => el ? (()=>{const r=el.getBoundingClientRect(); const cs=getComputedStyle(el); return {x:Math.round(r.x-rr.x),y:Math.round(r.y-rr.y),w:Math.round(r.width),h:Math.round(r.height),bg:cs.backgroundColor,borderRadius:cs.borderRadius,color:cs.color,fontSize:cs.fontSize,padding:cs.padding}})() : null
+      out.media = {
+        scene,
+        bubble: info(pick('[data-media-bubble]')),
+        placeholder: info(pick('[data-media-ph]')),
+        play: info(pick('[data-media-play]')),
+        chip: info(pick('[data-doc-chip]')),
+        name: info(pick('[data-doc-name]')),
+        isSticker: scene==='media-sticker',
       }
     }
   }
