@@ -71,7 +71,7 @@ func railBtn(icon string, badge int) fyne.CanvasObject {
 		b := canvas.NewText(strconv.Itoa(badge), waWhite)
 		b.TextSize = 10
 		b.TextStyle = fyne.TextStyle{Bold:true}
-		bg := canvas.NewCircle(waAccent2)
+		bg := canvas.NewCircle(waGreen)
 		bg.Resize(fyne.NewSize(18,18))
 		badgeObj := container.NewMax(bg, container.NewCenter(b))
 		box = container.NewMax(box, container.NewWithoutLayout(container.NewGridWrap(fyne.NewSize(18,18), badgeObj)))
@@ -106,7 +106,7 @@ func (fa *FyneApp) SwitchToChats() {
 	if fa.sidebar == nil { fa.sidebar = NewSidebar(fa) }
 	if fa.chatBox == nil { fa.chatBox = container.NewStack(fa.emptyPane()) }
 	fyne.Do(func() {
-		railBg := canvas.NewRectangle(waPanel2)
+		railBg := canvas.NewRectangle(waRail)
 		rail := container.NewVBox(
 			container.NewGridWrap(fyne.NewSize(48,12), canvas.NewRectangle(color.Transparent)),
 			railBtn("☰", 0), railBtn("💬", 0), railBtn("○", 0), railBtn("◎", 0), railBtn("⚙", 1),
