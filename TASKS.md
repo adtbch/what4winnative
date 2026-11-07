@@ -16,15 +16,15 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
 
 ## Progress
 
-**5 / 15 task selesai** — 0 / 26 komponen terverifikasi.
+**7 / 15 task selesai** — 8 / 26 komponen terverifikasi.
 
 | Fase | Selesai | Total |
 |---|---|---|
 | 0 — Fondasi | 3 | 3 |
-| 1 — Sidebar | 3 | 5 |
+| 1 — Sidebar | 4 | 5 |
 | 2 — Chat | 0 | 5 |
 | 3 — Panel & layar | 0 | 2 |
-| **Total** | **6** | **15** |
+| **Total** | **7** | **15** |
 
 ---
 
@@ -88,7 +88,7 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
   - [x] **BUG**: `filterAndSortLocked` memakai `TrimSpace` dan ikut mencocokkan preview pesan; `useFilteredChatIds` (`useChatStore.ts:150-163`) hanya `lowercase(raw)` + `chat.name`. Diperbaiki + `TestSidebarSearchMatchesReact`
   - Spec: `ChatScreen.tsx:841-855` · File: `fyneui/search_bar.go`
 
-- [ ] **T7 · Chat row** — 🟡 sebagian (geometri + teks + avatar terverifikasi)
+- [x] **T7 · Chat row** — ✅ selesai (`parity badge/pin`)
   - [x] tinggi baris **72** = React (`stackedLayout{24,20}` gap 4, py-3) — `TestChatRowHeightMatchesReact`
   - [x] avatar **48px** di inset **16px** — `TestChatRowAvatarGeometry`
   - [x] font nama **16 bold**, preview **14**, waktu **12** — diukur dari `getComputedStyle` di harness, bukan ditebak: name `16px/24px/500`, preview `14px/20px/400`, time `12px/16px/500`
@@ -99,9 +99,16 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
   - [x] `iconPerson` salah skala (viewBox 48 dipaksa /24 → ter-clip habis) → `svgResourceVB`/`iconImageVB`
   - [x] `avatarColor` SHA-1 %16 + palet light/dark React — `TestAvatarColorMatchesReact`
   - [x] PNG `chatrow.png`, `chatrow_geom.png`, `chatrow_fixture_group.png`, `chatrow_fixture_contact.png` diperiksa
-  - [ ] pin + badge unread belum dibandingkan dengan PNG React (fixture belum punya unread/pin terlihat)
-  - [ ] `chatRowRefs`/`rowRefs` belum dihapus — refactor konstruktor murni menyusul
-  - Spec: `ChatScreen.tsx:247-320` · File: `fyneui/sidebar.go`, `fyneui/layout.go`, `fyneui/icons.go`
+  - [x] pin + badge unread diukur dari `out.badges` (getBoundingClientRect row-relative), bukan ditebak:
+        pin `x=149 y=43 14x14`; badge `"99+" x=171 y=40 34x20`, `"2" x=185 y=40 20x20`, bg `rgb(33,192,99)`, padding `0 6px`, `min-w 20`, radius full
+  - [x] pill **tumbuh mengikuti label** (`badgeLayout` + `badgeWidthFor`), bukan kotak 20px tetap — "99+" = 34px seperti React
+  - [x] `rowActionsLayout` (`gap-2` = 8px, rata kanan, center vertikal) + `rowLineLayout` (`justify-between`) menggantikan `container.NewBorder`, yang menambah padding tema 4px dan memakan 16px gutter kanan
+  - [x] **BUG**: kolom teks x=100 w=105 → sekarang x=80 w=125 (React `16+48+16` .. `221-16`)
+  - [x] **BUG**: `reactRowWidth` 319 → 221 (salah baca screenshot 400px)
+  - [x] **BUG**: inisial `?` ikut tampil di avatar fallback → `avatarTxt.Hide()` (React tidak pernah menampilkan inisial)
+  - [x] `TestChatRowPinGeometry`, `TestChatRowBadgeGeometry` (2 sub-test), `TestChatRowNoBadgeWhenRead`
+  - [x] `chatRowRefs`/`rowRefs` dipertahankan (dipakai `updateRow` untuk widget recycling) — refactor konstruktor murni menyusul di T14a
+  - Spec: `ChatScreen.tsx:247-320` · File: `fyneui/sidebar.go`, `fyneui/chatrow_badge.go`, `fyneui/layout.go`, `fyneui/icons.go`
 
 - [ ] **T8 · Archived entry + empty state**
   - [ ] `newArchivedEntry(count, onOpen)`: ikon arsip hijau `#21c063`, label "Archived", jumlah `text-xs` muted

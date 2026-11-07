@@ -14,7 +14,8 @@ import (
 //
 //	rows[].h       = 72        (Tailwind px-4 py-3 + 48px avatar)
 //	rows[].padding = 12px 16px
-//	rows[].w       = 319       (sidebar at 400px window, minus borders)
+//	rows[].w       = 221       (sidebar width at a 400px window; the old 319 was
+//	                           a wrong reading of the 400px screenshot)
 //
 // Reference screenshot: fyneui/testdata/react/chatrow_dark_400x700.png
 const (
@@ -22,7 +23,7 @@ const (
 	reactRowPadX    = 16
 	reactRowPadY    = 12
 	reactAvatarSize = 48
-	reactRowWidth   = 319
+	reactRowWidth   = 221
 )
 
 // newTestRow builds one row through the same constructor the list uses, without

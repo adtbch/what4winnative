@@ -56,6 +56,7 @@ type chatRowRefs struct {
 	badgeTxt  *canvas.Text
 	badgeWrap fyne.CanvasObject
 	pin       fyne.CanvasObject
+	body      fyne.CanvasObject
 	avatarBg  *canvas.Circle
 	avatarImg *canvas.Image
 	avatarTxt *canvas.Text
@@ -64,7 +65,20 @@ type chatRowRefs struct {
 	catcher   *rowCatcher
 }
 
-const chatRowHeight = 72
+const (
+	chatRowHeight = 72
+	// Unread pill, from ChatScreen.tsx:314: h-5 (20), min-w-5 (20), px-1.5 (6),
+	// text-xs (12) font-semibold.
+	chatRowBadgeH        = 20
+	chatRowBadgePadX     = 6
+	chatRowBadgeFont     = 12
+	chatRowBadgeTextLift = 0
+	// Row box, from ChatScreen.tsx:249 `px-4 py-3` + `w-12 h-12 mr-4`.
+	chatRowPadX    float32 = 16
+	chatRowPadY    float32 = 12
+	chatAvatarSize float32 = 48
+	chatAvatarGap  float32 = 16
+)
 
 func NewSidebar(fa *FyneApp) *Sidebar {
 	s := &Sidebar{
@@ -209,10 +223,13 @@ func (s *Sidebar) newRow() fyne.CanvasObject {
 	avatarImg.Hide()
 	// React swaps the fallback avatar contents by chat type: a "people" glyph for
 	// groups, a person silhouette for contacts (ChatScreen.tsx MemoizedChatAvatar).
+	// React never shows initials, so the fallback text starts hidden: the glyph
+	// (person/people) is the only fallback. updateRow keeps it hidden.
 	avatarTxt := canvas.NewText("?", waText)
 	avatarTxt.Alignment = fyne.TextAlignCenter
 	avatarTxt.TextSize = 18
 	avatarTxt.TextStyle = fyne.TextStyle{Bold: true}
+	avatarTxt.Hide()
 	avatarPerson := iconImageVB("row-av-person", iconPerson, 36, 48, waAvatarIcon)
 	avatarPeople := iconImage("row-av-people", iconPeople, 26, waAvatarIcon)
 	avatarPerson.Hide()
@@ -235,36 +252,42 @@ func (s *Sidebar) newRow() fyne.CanvasObject {
 	timeTxt.TextSize = 12
 	timeTxt.TextStyle = fyne.TextStyle{Bold: true} // font-medium
 	timeTxt.Alignment = fyne.TextAlignTrailing
-	topRow := container.NewBorder(nil, nil, nil,
-		container.NewHBox(timeTxt), container.New(&truncLayout{l: name}, name.obj()))
+	// `justify-between`: no gap, the name may run right up to the timestamp.
+	topRow := container.New(&rowLineLayout{gap: 0},
+		container.New(&truncLayout{l: name}, name.obj()), timeTxt)
 
 	preview := newTruncLabel(14, waMuted, false)
 
+	// React: text-xs (12px) font-semibold, h-5 (20px), min-w-5 px-1.5 (6px each
+	// side), rounded-full. The pill grows with the label: "99+" measures 34px.
 	badgeTxt := canvas.NewText("", waBadgeText)
-	badgeTxt.TextSize = 11
+	badgeTxt.TextSize = 12
 	badgeTxt.TextStyle = fyne.TextStyle{Bold: true}
 	badgeTxt.Alignment = fyne.TextAlignCenter
 	badgeBg := canvas.NewRectangle(waGreen)
-	badgeBg.CornerRadius = 9
-	badgeWrap := container.NewGridWrap(fyne.NewSize(20, 20),
-		container.NewMax(badgeBg, container.NewCenter(badgeTxt)))
+	badgeBg.CornerRadius = 10
+	badgeWrap := container.New(&badgeLayout{bg: badgeBg, txt: badgeTxt},
+		badgeBg, badgeTxt)
 	badgeWrap.Hide()
 
 	pin := iconImage("row-pin", iconPin, 14, waMuted)
 	pin.Hide()
 
-	right := container.NewHBox(pin, badgeWrap)
-	bottomRow := container.NewBorder(nil, nil, nil, right, container.New(&truncLayout{l: preview}, preview.obj()))
+	// `flex items-center gap-2` — 8px between the pin and the badge.
+	right := container.New(&rowActionsLayout{gap: 8}, pin, badgeWrap)
+	bottomRow := container.New(&rowLineLayout{gap: 8},
+		container.New(&truncLayout{l: preview}, preview.obj()), right)
 
 	// React: `flex justify-between items-baseline mb-1` over a `text-sm` row.
 	// 24px (name line) + 4px (mb-1) + 20px (preview line) = 48px, the same as
 	// the avatar, which is why the row is exactly 72px with py-3.
 	mid := container.New(&stackedLayout{heights: []float32{24, 20}, gap: 4}, topRow, bottomRow)
 
-	// px-4 py-3 + avatar mr-4
-	body := container.NewBorder(nil, nil,
-		container.New(&padLayout{h: 16, v: 0}, avatar), nil,
-		container.New(&padLayout{h: 16, v: 12}, mid))
+	// px-4 py-3, avatar 48 + mr-4: the text column starts at 16+48+16 = 80 and
+	// ends at width-16. container.NewBorder adds the theme's 4px padding on
+	// every edge, which pushed both the badge and the text 4px off React's
+	// measured positions, so the row is laid out explicitly instead.
+	body := container.New(&rowBodyLayout{}, avatar, mid)
 
 	catcher := &rowCatcher{}
 	catcher.ExtendBaseWidget(catcher)
@@ -299,7 +322,7 @@ func (s *Sidebar) newRow() fyne.CanvasObject {
 	}
 
 	s.rowRefs[sized] = &chatRowRefs{
-		hover: hover, name: name, time: timeTxt, preview: preview,
+		hover: hover, name: name, time: timeTxt, preview: preview, body: body,
 		badgeBg: badgeBg, badgeTxt: badgeTxt, badgeWrap: badgeWrap, pin: pin,
 		avatarBg: avatarBg, avatarImg: avatarImg, avatarTxt: avatarTxt,
 		avPerson: avatarPerson, avPeople: avatarPeople, catcher: catcher,

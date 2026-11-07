@@ -281,6 +281,44 @@ function collect() {
     }
   }
 
+  // Pin icon + unread badge inside the preview row: the last two children of
+  // `flex items-center gap-2`. Measured so the Fyne row can place them exactly.
+  // The pin is the only 14x14 svg in the row; the badge is the only span with a
+  // #21c063 background.
+  out.badges = []
+  document.querySelectorAll("#root .overflow-y-auto > div").forEach(rowEl => {
+    const rowRect = rowEl.getBoundingClientRect()
+    const p = rowEl.querySelector('svg[width="14"][height="14"]') as SVGElement | null
+    const b = Array.from(rowEl.querySelectorAll("span")).find(el => {
+      const cs = getComputedStyle(el)
+      return cs.backgroundColor === "rgb(33, 192, 99)"
+    }) as HTMLElement | undefined
+    if (!p && !b) return
+    const info = (el: Element) => {
+      const r = el.getBoundingClientRect()
+      const cs = getComputedStyle(el)
+      return {
+        x: Math.round(r.x),
+        y: Math.round(r.y - rowRect.y),
+        w: Math.round(r.width),
+        h: Math.round(r.height),
+        padding: cs.padding,
+        radius: cs.borderRadius,
+        bg: cs.backgroundColor,
+        color: cs.color,
+        fontSize: cs.fontSize,
+        fontWeight: cs.fontWeight,
+        lineHeight: cs.lineHeight,
+        minWidth: cs.minWidth,
+      }
+    }
+    ;(out.badges as unknown[]).push({
+      row: (rowEl.textContent || "").slice(0, 20),
+      pin: p ? info(p) : null,
+      badge: b ? info(b) : null,
+    })
+  })
+
   const pre = document.getElementById("metrics")
   if (pre) pre.textContent = JSON.stringify(out, null, 2)
   ;(window as unknown as { __PARITY__: unknown }).__PARITY__ = out
