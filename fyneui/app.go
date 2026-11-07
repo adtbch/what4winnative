@@ -103,7 +103,7 @@ func (fa *FyneApp) emptyPane() fyne.CanvasObject {
 
 func (fa *FyneApp) SwitchToChats() {
 	fa.state.Screen = "chats"
-	if fa.sidebar == nil { fa.sidebar = NewSidebar(fa) }
+	if fa.sidebar == nil { fa.sidebar = NewSidebar(fa) } else { go fa.sidebar.loadChats() }
 	if fa.chatBox == nil { fa.chatBox = container.NewStack(fa.emptyPane()) }
 	fyne.Do(func() {
 		railBg := canvas.NewRectangle(waRail)

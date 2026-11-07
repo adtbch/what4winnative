@@ -164,12 +164,21 @@ func NewSidebar(fa *FyneApp) *Sidebar {
 
 	go s.loadChats()
 	go s.listenRefresh()
+	go func() {
+		for _, d := range []int{1, 3, 6, 12} {
+			select { case <-s.fa.ctx.Done(): return; case <-time.After(time.Duration(d)*time.Second): }
+			s.loadChats()
+		}
+	}()
 	go s.listenIncoming()
 	go s.listenReadState()
 	return s
 }
 
 func (s *Sidebar) rebuildPills() {
+	fyne.Do(func() { s.rebuildPillsUI() })
+}
+func (s *Sidebar) rebuildPillsUI() {
 	type def struct {
 		f chatFilter
 		l string
@@ -449,12 +458,17 @@ func (s *Sidebar) matchesFilterLocked(c api.ChatElement) bool {
 
 func (s *Sidebar) listenRefresh() {
 	ch := SubscribeEvent("wa:chat_list_refresh")
+	st := SubscribeEvent("wa:status")
 	for {
 		select {
 		case <-s.fa.ctx.Done():
 			return
 		case <-ch:
 			s.loadChats()
+		case data := <-st:
+			if v, ok := data.(string); ok && (v == "logged_in" || v == "success" || v == "connected" || v == "synced") {
+				s.loadChats()
+			}
 		}
 	}
 }
