@@ -16,15 +16,15 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
 
 ## Progress
 
-**8 / 15 task selesai** — 11 / 26 komponen terverifikasi.
+**9 / 15 task selesai** — 12 / 26 komponen terverifikasi.
 
 | Fase | Selesai | Total |
 |---|---|---|
 | 0 — Fondasi | 3 | 3 |
 | 1 — Sidebar | 5 | 5 |
-| 2 — Chat | 0 | 5 |
+| 2 — Chat | 1 | 5 |
 | 3 — Panel & layar | 0 | 2 |
-| **Total** | **8** | **15** |
+| **Total** | **9** | **15** |
 
 ---
 
@@ -122,13 +122,17 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
   - [x] **BUG**: `syncChrome` cuma `RLock` padahal harus menulis `archived = false` saat arsip kosong (`ChatScreen.tsx:593`)
   - Spec: `ChatScreen.tsx:355-374, 859-887` · File: `fyneui/sidebar_states.go`, `fyneui/sidebar.go`, `fyneui/icons.go`
 
-- [ ] **T9 · Chat header**
-  - [ ] `newChatHeader(onBack, onInfo, onCall)` + `Set(chatHeaderData)`
-  - [ ] avatar 40px, nama `text-[16px] font-medium truncate`, subtitle `text-xs` muted, tombol call (hanya non-group) + info, border bawah
-  - [ ] `TestChatHeaderGolden` + `TestChatHeaderGroupHidesCall` PASS · PNG diperiksa
-  - [ ] `headerName`/`headerSub`/`avatarTxt`/`avatarBg`/`avatarImg` di `ChatView` dihapus
-  - [ ] commit `feat(fyne): chat header component with golden tests`
-  - Spec: `ChatHeader.tsx` · File: `fyneui/chat_header.go`
+- [x] **T9 · Chat header** — commit `06f26e0`
+  - [x] `newChatHeader(onBack, onInfo, d)` + `Set(chatHeaderData)` di `fyneui/chat_header.go`
+  - [x] avatar 40px `#4a5565`, nama 16px/24 bold truncate, subtitle 12px/16 `#8696a0`, call 38px (hanya kontak) + info 28px, border 1px `white/5`
+  - [x] **Terverifikasi (600px, ink bbox React vs Fyne):** back `16..31 / 24..39` = `16..31 / 24..39`; avatar `64..103 / 12..51` = `64..103 / 12..51`; call `532..549 / 23..40` = `532..549 / 23..40`; info `565..582 / 23..40` = `565..582 / 23..40`; nama & subtitle origin x=116 identik (lebar glyph Fyne +10px karena font)
+  - [x] **BUG**: `iconBox` belum `ExtendBaseWidget` → panah back tidak pernah tergambar
+  - [x] **BUG**: header lama pakai `NewBorder`+`NewHBox` → padding tema 12px+ dan tinggi baris 64px, padahal `p-3` = 65px
+  - [x] **BUG**: back arrow `md:hidden` → wajib hilang di ≥768px, bukan selalu render
+  - [x] **BUG**: subtitle grup masih placeholder "group info" → sekarang diturunkan persis `ChatDetail.tsx:135-160` ("You, Alice, ~ Bob, +91 …", self difilter via phone+JID, label = full name > "~ push" > short > `formatPhone`); `formatPhone` diport dari `lib/utils.ts:12-19`
+  - [x] field lama `headerName`/`headerSub`/`avatarTxt`/`avatarBg`/`avatarImg` dihapus dari `ChatView`
+  - [x] 6 test PASS: golden geometry, grup tanpa call, action pinned right, truncate nama, initial avatar, back hidden di desktop
+  - Spec: `ChatHeader.tsx`, `ChatDetail.tsx:135-160,703-714` · File: `fyneui/chat_header.go`
 
 ---
 
