@@ -409,6 +409,22 @@ func (cv *ChatView) textBlock(src string, maxW float32) fyne.CanvasObject {
 		t.TextSize = 32
 		return wrapFixed(t, minF(fyne.MeasureText(plain, 32, fyne.TextStyle{}).Width+4, inner), 40)
 	}
+	// Long text clamp/Read more (MessageItem.tsx LONG_TEXT_CHARS/LINES). YAGNI:
+	// collapsed renders truncated plain (drops rich markup) to avoid HTML slicing.
+	if isLongTextPlain(plain) {
+		fullBox, fw, fh := htmlTextBlock(src, inner, 14)
+		if fw < 24 {
+			fw = 24
+		}
+		full := container.NewGridWrap(fyne.NewSize(minF(fw+16, inner), fh+16), fullBox)
+		short := truncatePlain(plain, longTextChars, longTextLines)
+		colBox, cw, ch := htmlTextBlock(short, inner, 14)
+		if cw < 24 {
+			cw = 24
+		}
+		collapsed := container.NewGridWrap(fyne.NewSize(minF(cw+16, inner), ch+16), colBox)
+		return newClampText(full, collapsed)
+	}
 	box, w, h := htmlTextBlock(src, inner, 14)
 	if w < 24 {
 		w = 24
