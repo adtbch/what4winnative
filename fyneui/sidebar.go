@@ -1,6 +1,7 @@
 package fyneui
 
 import (
+	"encoding/base64"
 	"fmt"
 	"image/color"
 	"log"
@@ -13,6 +14,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/lugvitc/whats4linux/api"
@@ -39,7 +41,7 @@ func newTappablePill(text string, active bool, onTap func()) *tappablePill {
 	p := &tappablePill{onTap: onTap}
 	p.ExtendBaseWidget(p)
 	p.bg = canvas.NewRectangle(pillBg(active))
-	p.bg.CornerRadius = 999
+	p.bg.CornerRadius = 16
 	p.label = canvas.NewText(text, pillFg(active))
 	p.label.TextSize = 13
 	p.label.TextStyle = fyne.TextStyle{Bold: active}
@@ -59,8 +61,24 @@ func pillFg(active bool) color.Color {
 	return waMuted
 }
 
+type layoutHPad struct{ h, v float32 }
+
+func (l layoutHPad) MinSize(objects []fyne.CanvasObject) fyne.Size {
+	if len(objects) == 0 {
+		return fyne.NewSize(0, 0)
+	}
+	s := objects[0].MinSize()
+	return fyne.NewSize(s.Width+l.h*2, s.Height+l.v*2)
+}
+func (l layoutHPad) Layout(objects []fyne.CanvasObject, size fyne.Size) {
+	for _, o := range objects {
+		o.Resize(fyne.NewSize(size.Width-l.h*2, size.Height-l.v*2))
+		o.Move(fyne.NewPos(l.h, l.v))
+	}
+}
+
 func (p *tappablePill) CreateRenderer() fyne.WidgetRenderer {
-	return widget.NewSimpleRenderer(container.NewMax(p.bg, container.NewPadded(container.NewCenter(p.label))))
+	return widget.NewSimpleRenderer(container.NewMax(p.bg, container.New(layoutHPad{h: 12, v: 6}, p.label)))
 }
 func (p *tappablePill) Tapped(*fyne.PointEvent) {
 	if p.onTap != nil {
@@ -68,14 +86,6 @@ func (p *tappablePill) Tapped(*fyne.PointEvent) {
 	}
 }
 func (p *tappablePill) Cursor() desktop.Cursor { return desktop.PointerCursor }
-func (p *tappablePill) SetState(text string, active bool) {
-	p.label.Text = text
-	p.label.Color = pillFg(active)
-	p.label.TextStyle = fyne.TextStyle{Bold: active}
-	p.bg.FillColor = pillBg(active)
-	p.label.Refresh()
-	p.bg.Refresh()
-}
 
 type Sidebar struct {
 	fa        *FyneApp
@@ -83,13 +93,13 @@ type Sidebar struct {
 	allChats  []api.ChatElement
 	visible   []api.ChatElement
 	unread    map[string]int
-	favourite map[string]bool // real data source not in backend; kept for real-count/filter (currently none)
+	favourite map[string]bool
+	avatarRes map[string]fyne.Resource
 	filter    chatFilter
 	search    string
 	list      *widget.List
 	root      fyne.CanvasObject
 	syncLbl   *canvas.Text
-	pills     map[chatFilter]*tappablePill
 	pillBox   *fyne.Container
 	searchEnt *widget.Entry
 }
@@ -99,8 +109,8 @@ func NewSidebar(fa *FyneApp) *Sidebar {
 		fa:        fa,
 		unread:    make(map[string]int),
 		favourite: make(map[string]bool),
+		avatarRes: make(map[string]fyne.Resource),
 		filter:    filterAll,
-		pills:     make(map[chatFilter]*tappablePill),
 	}
 
 	s.list = widget.NewList(
@@ -123,18 +133,21 @@ func NewSidebar(fa *FyneApp) *Sidebar {
 		s.mu.Lock()
 		delete(s.unread, jid)
 		s.mu.Unlock()
+		s.fa.state.mu.Lock()
+		s.fa.state.SelectedChatID = jid
+		s.fa.state.mu.Unlock()
 		s.fa.OpenChat(jid)
 		s.refreshVisible()
 	}
 
 	title := canvas.NewText("WhatsApp", waText)
-	title.TextSize = 22
+	title.TextSize = 20
 	title.TextStyle = fyne.TextStyle{Bold: true}
-	newChat := canvas.NewText("\u2295", waMuted)
-	newChat.TextSize = 18
-	menu := canvas.NewText("\u22EE", waMuted)
-	menu.TextSize = 18
-	header := container.NewPadded(container.NewBorder(nil, nil, nil, container.NewHBox(newChat, spacer(16, 0), menu), title))
+	iconNew := widget.NewButtonWithIcon("", theme.ContentAddIcon(), nil)
+	iconNew.Importance = widget.LowImportance
+	iconMenu := widget.NewButtonWithIcon("", theme.MoreVerticalIcon(), nil)
+	iconMenu.Importance = widget.LowImportance
+	header := container.NewPadded(container.NewBorder(nil, nil, title, container.NewHBox(iconNew, iconMenu), nil))
 
 	s.searchEnt = widget.NewEntry()
 	s.searchEnt.SetPlaceHolder("Search or start a new chat")
@@ -146,70 +159,55 @@ func NewSidebar(fa *FyneApp) *Sidebar {
 	}
 	searchBg := canvas.NewRectangle(waPanel2)
 	searchBg.CornerRadius = 8
-	searchIcon := canvas.NewText("\U0001F50D", waMuted)
-	searchIcon.TextSize = 13
-	searchWrap := container.NewMax(searchBg, container.NewPadded(container.NewBorder(nil, nil, container.NewPadded(searchIcon), nil, s.searchEnt)))
+	searchWrap := container.NewMax(searchBg, container.NewPadded(container.NewBorder(nil, nil, widget.NewIcon(theme.SearchIcon()), nil, s.searchEnt)))
 
 	s.pillBox = container.NewHBox()
 	s.rebuildPills()
 	filtersWrap := container.NewHScroll(container.NewPadded(s.pillBox))
-	filtersWrap.SetMinSize(fyne.NewSize(0, 38))
+	filtersWrap.SetMinSize(fyne.NewSize(0, 40))
 
 	s.syncLbl = canvas.NewText("Syncing chats\u2026", waMuted)
 	s.syncLbl.TextSize = 12
-	syncBar := container.NewCenter(container.NewPadded(s.syncLbl))
+	syncBar := container.NewPadded(container.NewCenter(s.syncLbl))
 
 	top := container.NewVBox(header, searchWrap, filtersWrap)
 	s.root = container.NewBorder(top, syncBar, nil, nil, s.list)
 
-	go s.loadChats()
-	go s.listenRefresh()
-	go func() {
-		for _, d := range []int{1, 3, 6, 12} {
-			select { case <-s.fa.ctx.Done(): return; case <-time.After(time.Duration(d)*time.Second): }
-			s.loadChats()
-		}
-	}()
-	go s.listenIncoming()
-	go s.listenReadState()
+	go s.loadLoop()
+	go s.listenEvents()
 	return s
 }
 
 func (s *Sidebar) rebuildPills() {
-	fyne.Do(func() { s.rebuildPillsUI() })
-}
-func (s *Sidebar) rebuildPillsUI() {
-	type def struct {
-		f chatFilter
-		l string
+	s.mu.RLock()
+	filter := s.filter
+	texts := map[chatFilter]string{
+		filterAll:        "All",
+		filterUnread:     s.pillTextLocked(filterUnread),
+		filterFavourites: s.pillTextLocked(filterFavourites),
+		filterGroups:     s.pillTextLocked(filterGroups),
+		filterArchived:   s.pillTextLocked(filterArchived),
 	}
-	defs := []def{
-		{filterAll, "All"},
-		{filterUnread, "Unread"},
-		{filterFavourites, "Favourites"},
-		{filterGroups, "Groups"},
-		{filterArchived, "Archived"},
-	}
-	objs := make([]fyne.CanvasObject, 0, len(defs))
-	for _, d := range defs {
-		df := d.f
-		p := newTappablePill(s.pillText(df), s.filter == df, func() {
-			s.mu.Lock()
-			s.filter = df
-			s.mu.Unlock()
-			s.rebuildPills()
-			s.refreshVisible()
-		})
-		s.pills[df] = p
-		objs = append(objs, p)
-	}
-	s.pillBox.Objects = objs
-	s.pillBox.Refresh()
+	s.mu.RUnlock()
+	fyne.Do(func() {
+		objs := make([]fyne.CanvasObject, 0, 5)
+		for _, df := range []chatFilter{filterAll, filterUnread, filterFavourites, filterGroups, filterArchived} {
+			dff := df
+			p := newTappablePill(texts[dff], filter == dff, func() {
+				s.mu.Lock()
+				s.filter = dff
+				s.mu.Unlock()
+				s.rebuildPills()
+				s.refreshVisible()
+			})
+			objs = append(objs, p)
+		}
+		s.pillBox.Objects = objs
+		s.pillBox.Refresh()
+	})
 }
 
-func (s *Sidebar) pillText(f chatFilter) string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+func (s *Sidebar) pillTextLocked(f chatFilter) string {
 	unread, groups, archived, fav := s.countsLocked()
 	switch f {
 	case filterUnread:
@@ -256,13 +254,17 @@ func (s *Sidebar) countsLocked() (unread, groups, archived, fav int) {
 }
 
 func (s *Sidebar) newRow() fyne.CanvasObject {
-	bg := canvas.NewRectangle(color.Transparent)
+	selBg := canvas.NewRectangle(color.Transparent)
 	avatarBg := canvas.NewCircle(waHover)
+	avatarImg := canvas.NewImageFromResource(nil)
+	avatarImg.FillMode = canvas.ImageFillContain
+	avatarImg.Hide()
 	avatarTxt := canvas.NewText("?", waText)
 	avatarTxt.Alignment = fyne.TextAlignCenter
-	avatarTxt.TextSize = 14
+	avatarTxt.TextSize = 15
 	avatarTxt.TextStyle = fyne.TextStyle{Bold: true}
-	avatar := container.NewMax(avatarBg, container.NewCenter(avatarTxt))
+	avatarClip := container.NewClip(container.NewMax(avatarBg, avatarImg, container.NewCenter(avatarTxt)))
+	avatar := container.NewGridWrap(fyne.NewSize(49, 49), avatarClip)
 
 	name := canvas.NewText("name", waText)
 	name.TextSize = 15
@@ -275,22 +277,23 @@ func (s *Sidebar) newRow() fyne.CanvasObject {
 	preview := canvas.NewText("preview", waMuted)
 	preview.TextSize = 13
 	pin := canvas.NewText("", waMuted)
-	pin.TextSize = 12
-	badgeBg := canvas.NewRectangle(waGreen)
-	badgeBg.CornerRadius = 999
-	badgeTxt := canvas.NewText("", waPanel)
+	pin.TextSize = 11
+	badgeBg := canvas.NewCircle(waGreen)
+	badgeTxt := canvas.NewText("", color.NRGBA{R: 0x11, G: 0x1b, B: 0x21, A: 255})
 	badgeTxt.TextSize = 11
 	badgeTxt.TextStyle = fyne.TextStyle{Bold: true}
 	badgeTxt.Alignment = fyne.TextAlignCenter
-	badgeWrap := container.NewMax(badgeBg, container.NewPadded(container.NewCenter(badgeTxt)))
-	badgeWrap.Hide()
-	right := container.NewHBox(pin, spacer(6, 0), badgeWrap)
+	badge := container.NewGridWrap(fyne.NewSize(20, 20), container.NewMax(badgeBg, container.NewCenter(badgeTxt)))
+	badge.Hide()
+	right := container.NewHBox(pin, badge)
 	bottom := container.NewBorder(nil, nil, nil, right, preview)
 
-	mid := container.NewVBox(top, bottom)
-	row := container.NewBorder(nil, nil, container.NewPadded(container.NewGridWrap(fyne.NewSize(49, 49), avatar)), nil, container.NewPadded(mid))
-	padded := container.NewPadded(row)
-	return container.NewMax(bg, padded)
+	mid := container.NewVBox(spacer(0, 2), top, spacer(0, 1), bottom)
+	row := container.NewBorder(nil, nil, container.NewPadded(avatar), nil, container.NewPadded(mid))
+	divider := canvas.NewRectangle(waDivider)
+	divider.SetMinSize(fyne.NewSize(0, 1))
+	inner := container.NewBorder(nil, divider, nil, nil, row)
+	return container.NewMax(selBg, inner)
 }
 
 func (s *Sidebar) updateRow(id widget.ListItemID, obj fyne.CanvasObject) {
@@ -301,41 +304,55 @@ func (s *Sidebar) updateRow(id widget.ListItemID, obj fyne.CanvasObject) {
 	}
 	c := s.visible[id]
 	unread := s.unread[c.JID]
+	avRes := s.avatarRes[c.JID]
+	s.fa.state.mu.RLock()
+	selected := s.fa.state.SelectedChatID == c.JID
+	s.fa.state.mu.RUnlock()
 	s.mu.RUnlock()
 
 	root := obj.(*fyne.Container)
-	padded := root.Objects[1].(*fyne.Container)
-	row := padded.Objects[0].(*fyne.Container)
-	avatarMax := row.Objects[1].(*fyne.Container).Objects[0].(*fyne.Container)
-	avatarStack := avatarMax.Objects[0].(*fyne.Container)
+	selBg := root.Objects[0].(*canvas.Rectangle)
+	if selected {
+		selBg.FillColor = waHover
+	} else {
+		selBg.FillColor = color.Transparent
+	}
+	selBg.Refresh()
+
+	inner := root.Objects[1].(*fyne.Container)
+	row := inner.Objects[0].(*fyne.Container)
+	avatarPad := row.Objects[1].(*fyne.Container)
+	avatarWrap := avatarPad.Objects[0].(*fyne.Container)
+	avatarClip := avatarWrap.Objects[0].(*fyne.Container)
+	avatarStack := avatarClip.Objects[0].(*fyne.Container)
 	avatarBg := avatarStack.Objects[0].(*canvas.Circle)
-	avatarCenter := avatarStack.Objects[1].(*fyne.Container)
+	avatarImg := avatarStack.Objects[1].(*canvas.Image)
+	avatarCenter := avatarStack.Objects[2].(*fyne.Container)
 	avatarTxt := avatarCenter.Objects[0].(*canvas.Text)
 
-	midPadded := row.Objects[0].(*fyne.Container)
-	mid := midPadded.Objects[0].(*fyne.Container)
-	top := mid.Objects[0].(*fyne.Container)
+	midPad := row.Objects[0].(*fyne.Container)
+	mid := midPad.Objects[0].(*fyne.Container)
+	top := mid.Objects[1].(*fyne.Container)
 	nameTxt := top.Objects[0].(*canvas.Text)
 	timeTxt := top.Objects[2].(*canvas.Text)
-	bottom := mid.Objects[1].(*fyne.Container)
+	bottom := mid.Objects[3].(*fyne.Container)
 	prevTxt := bottom.Objects[0].(*canvas.Text)
 	rightBox := bottom.Objects[2].(*fyne.Container)
 	pinTxt := rightBox.Objects[0].(*canvas.Text)
-	badgeWrap := rightBox.Objects[2].(*fyne.Container)
-	badgeBg := badgeWrap.Objects[0].(*canvas.Rectangle)
-	badgePad := badgeWrap.Objects[1].(*fyne.Container)
-	badgeCenter := badgePad.Objects[0].(*fyne.Container)
-	badgeTxt := badgeCenter.Objects[0].(*canvas.Text)
+	badgeWrap := rightBox.Objects[1].(*fyne.Container)
 
 	name := chatDisplayName(c)
-	nameTxt.Text = truncateRunes(name, 28)
+	nameTxt.Text = truncateRunes(name, 30)
 	nameTxt.Refresh()
 
-	prev := c.LatestMessage
-	if c.Sender != "" && isGroupJID(c.JID) {
+	prev := strings.TrimSpace(c.LatestMessage)
+	if c.Sender != "" && isGroupJID(c.JID) && prev != "" {
 		prev = shortSender(c.Sender) + ": " + prev
 	}
-	prevTxt.Text = truncateRunes(prev, 42)
+	if prev == "" {
+		prev = " "
+	}
+	prevTxt.Text = truncateRunes(prev, 44)
 	prevTxt.Refresh()
 
 	timeTxt.Text = formatChatTimestamp(c.LatestTS)
@@ -348,50 +365,101 @@ func (s *Sidebar) updateRow(id widget.ListItemID, obj fyne.CanvasObject) {
 
 	if c.Pinned {
 		pinTxt.Text = "\U0001F4CC"
-	} else if c.Archived && s.filter == filterArchived {
-		pinTxt.Text = "\U0001F5C4"
 	} else {
 		pinTxt.Text = ""
 	}
 	pinTxt.Refresh()
 
 	if unread > 0 {
+		badgeMax := badgeWrap.Objects[0].(*fyne.Container)
+		badgeCenter := badgeMax.Objects[1].(*fyne.Container)
+		badgeTxt := badgeCenter.Objects[0].(*canvas.Text)
 		if unread > 99 {
 			badgeTxt.Text = "99+"
 		} else {
 			badgeTxt.Text = fmt.Sprintf("%d", unread)
 		}
-		badgeBg.FillColor = waGreen
-		badgeWrap.Show()
 		badgeTxt.Refresh()
-		badgeBg.Refresh()
-		badgeWrap.Refresh()
+		badgeWrap.Show()
 	} else {
 		badgeWrap.Hide()
 	}
 
-	avatarBg.FillColor = avatarColor(c.JID)
-	avatarTxt.Text = sidebarAvatarInitial(name, c.JID)
-	avatarBg.Refresh()
-	avatarTxt.Refresh()
+	if avRes != nil {
+		avatarImg.Resource = avRes
+		avatarImg.Show()
+		avatarTxt.Hide()
+		avatarImg.Refresh()
+	} else {
+		avatarImg.Hide()
+		avatarTxt.Show()
+		avatarBg.FillColor = avatarColor(c.JID)
+		avatarTxt.Text = sidebarAvatarInitial(name, c.JID)
+		avatarBg.Refresh()
+		avatarTxt.Refresh()
+	}
 }
 
-func (s *Sidebar) loadChats() {
+func (s *Sidebar) loadLoop() {
+	delays := []time.Duration{200 * time.Millisecond, 800 * time.Millisecond, 2 * time.Second, 4 * time.Second, 6 * time.Second, 10 * time.Second}
+	for i, d := range delays {
+		select {
+		case <-s.fa.ctx.Done():
+			return
+		case <-time.After(d):
+		}
+		n, err := s.fetchChats()
+		log.Println("sidebar load attempt", i+1, "count", n, "err", err)
+		if n > 0 {
+			return
+		}
+	}
+	for {
+		select {
+		case <-s.fa.ctx.Done():
+			return
+		case <-time.After(15 * time.Second):
+		}
+		s.mu.RLock()
+		empty := len(s.allChats) == 0
+		s.mu.RUnlock()
+		if empty {
+			s.fetchChats()
+		} else {
+			return
+		}
+	}
+}
+
+func (s *Sidebar) fetchChats() (int, error) {
 	chats, err := s.fa.api.GetChatList()
 	if err != nil {
-		log.Println("sidebar GetChatList:", err)
-		return
+		log.Println("sidebar GetChatList error:", err)
+		fyne.Do(func() {
+			if s.syncLbl != nil {
+				s.syncLbl.Text = "Waiting for WhatsApp\u2026"
+				s.syncLbl.Refresh()
+			}
+		})
+		return 0, err
 	}
 	s.mu.Lock()
 	s.allChats = chats
 	s.mu.Unlock()
 	s.refreshVisible()
 	fyne.Do(func() {
-		if s.syncLbl != nil {
-			s.syncLbl.Text = ""
-			s.syncLbl.Refresh()
+		if s.syncLbl == nil {
+			return
 		}
+		if len(chats) == 0 {
+			s.syncLbl.Text = "No chats yet \u2014 syncing history\u2026"
+		} else {
+			s.syncLbl.Text = ""
+		}
+		s.syncLbl.Refresh()
 	})
+	go s.loadAvatars(chats)
+	return len(chats), nil
 }
 
 func (s *Sidebar) refreshVisible() {
@@ -415,13 +483,13 @@ func (s *Sidebar) filterAndSortLocked() []api.ChatElement {
 		}
 		if term != "" {
 			name := strings.ToLower(chatDisplayName(c))
-			if !strings.Contains(name, term) && !strings.Contains(strings.ToLower(c.LatestMessage), term) {
+			prev := strings.ToLower(c.LatestMessage)
+			if !strings.Contains(name, term) && !strings.Contains(prev, term) {
 				continue
 			}
 		}
 		out = append(out, c)
 	}
-	// Sort: pinned first, then LatestTS desc (matches chatSort.ts)
 	sort.SliceStable(out, func(i, j int) bool {
 		a, b := out[i], out[j]
 		if a.Pinned != b.Pinned {
@@ -437,79 +505,62 @@ func (s *Sidebar) matchesFilterLocked(c api.ChatElement) bool {
 	case filterArchived:
 		return c.Archived
 	case filterUnread:
-		if c.Archived {
-			return false
-		}
-		return s.unread[c.JID] > 0
+		return !c.Archived && s.unread[c.JID] > 0
 	case filterGroups:
-		if c.Archived {
-			return false
-		}
-		return isGroupJID(c.JID)
+		return !c.Archived && isGroupJID(c.JID)
 	case filterFavourites:
-		if c.Archived {
-			return false
-		}
-		return s.favourite[c.JID]
-	default: // all
+		return !c.Archived && s.favourite[c.JID]
+	default:
 		return !c.Archived
 	}
 }
 
-func (s *Sidebar) listenRefresh() {
-	ch := SubscribeEvent("wa:chat_list_refresh")
-	st := SubscribeEvent("wa:status")
-	for {
-		select {
-		case <-s.fa.ctx.Done():
-			return
-		case <-ch:
-			s.loadChats()
-		case data := <-st:
-			if v, ok := data.(string); ok && (v == "logged_in" || v == "success" || v == "connected" || v == "synced") {
-				s.loadChats()
-			}
-		}
-	}
-}
-
-func (s *Sidebar) listenIncoming() {
-	ch := SubscribeEvent("wa:new_message")
-	for {
-		select {
-		case <-s.fa.ctx.Done():
-			return
-		case data := <-ch:
-			m, ok := data.(map[string]any)
-			if !ok {
-				continue
-			}
-			chatID, _ := m["chatId"].(string)
-			isFromMe, _ := m["isFromMe"].(bool)
-			if chatID == "" || isFromMe {
-				continue
-			}
-			s.mu.RLock()
-			selected := s.fa.state.SelectedChatID
-			s.mu.RUnlock()
-			if selected == chatID {
-				continue
-			}
-			s.mu.Lock()
-			s.unread[chatID]++
-			s.mu.Unlock()
-			s.refreshVisible()
-		}
-	}
-}
-
-func (s *Sidebar) listenReadState() {
+func (s *Sidebar) listenEvents() {
+	refreshCh := SubscribeEvent("wa:chat_list_refresh")
+	statusCh := SubscribeEvent("wa:status")
+	newMsgCh := SubscribeEvent("wa:new_message")
 	readCh := SubscribeEvent("wa:chat_marked_read")
 	unreadCh := SubscribeEvent("wa:chat_marked_unread")
+	picCh := SubscribeEvent("wa:picture_update")
+
+	refreshDebounce := time.NewTimer(0)
+	if !refreshDebounce.Stop() {
+		select {
+		case <-refreshDebounce.C:
+		default:
+		}
+	}
+	pendingRefresh := false
+
 	for {
 		select {
 		case <-s.fa.ctx.Done():
 			return
+		case <-refreshCh:
+			pendingRefresh = true
+			refreshDebounce.Reset(350 * time.Millisecond)
+		case <-refreshDebounce.C:
+			if pendingRefresh {
+				pendingRefresh = false
+				s.fetchChats()
+			}
+		case data := <-statusCh:
+			if v, ok := data.(string); ok {
+				log.Println("sidebar status event:", v)
+				switch v {
+				case "logged_in", "success", "connected", "synced", "ready":
+					s.fetchChats()
+				case "connecting":
+					fyne.Do(func() {
+						if s.syncLbl != nil {
+							s.syncLbl.Text = "Connecting\u2026"
+							s.syncLbl.Refresh()
+						}
+					})
+				}
+			}
+		case data := <-newMsgCh:
+			s.handleNewMessage(data)
 		case data := <-readCh:
 			if m, ok := data.(map[string]any); ok {
 				if chatID, _ := m["chatId"].(string); chatID != "" {
@@ -530,8 +581,139 @@ func (s *Sidebar) listenReadState() {
 					s.refreshVisible()
 				}
 			}
+		case data := <-picCh:
+			if jid, ok := data.(string); ok && jid != "" {
+				go s.loadAvatar(jid, true)
+			}
 		}
 	}
+}
+
+func (s *Sidebar) handleNewMessage(data any) {
+	m, ok := data.(map[string]any)
+	if !ok {
+		return
+	}
+	chatID, _ := m["chatId"].(string)
+	if chatID == "" {
+		return
+	}
+	isFromMe, _ := m["isFromMe"].(bool)
+	text, _ := m["messageText"].(string)
+	sender, _ := m["sender"].(string)
+	reaction, _ := m["reaction"].(string)
+	var ts int64
+	switch v := m["timestamp"].(type) {
+	case int64:
+		ts = v
+	case float64:
+		ts = int64(v)
+	case int:
+		ts = int64(v)
+	}
+	if reaction != "" {
+		if text != "" {
+			text = sender + " reacted " + reaction + " to: \"" + truncateRunes(text, 40) + "\""
+		} else {
+			text = sender + " reacted " + reaction
+		}
+		sender = ""
+	}
+
+	s.fa.state.mu.RLock()
+	selected := s.fa.state.SelectedChatID
+	s.fa.state.mu.RUnlock()
+
+	s.mu.Lock()
+	idx := -1
+	for i := range s.allChats {
+		if s.allChats[i].JID == chatID {
+			idx = i
+			break
+		}
+	}
+	if idx >= 0 {
+		if text != "" {
+			s.allChats[idx].LatestMessage = text
+		}
+		if ts > 0 {
+			s.allChats[idx].LatestTS = ts
+		}
+		s.allChats[idx].Sender = sender
+		if !isFromMe && selected != chatID && reaction == "" {
+			s.unread[chatID]++
+		}
+		s.mu.Unlock()
+		s.refreshVisible()
+		return
+	}
+	s.mu.Unlock()
+	go func() {
+		s.fetchChats()
+		if !isFromMe && selected != chatID && reaction == "" {
+			s.mu.Lock()
+			s.unread[chatID]++
+			s.mu.Unlock()
+			s.refreshVisible()
+		}
+	}()
+}
+
+func (s *Sidebar) loadAvatars(chats []api.ChatElement) {
+	const workers = 4
+	sem := make(chan struct{}, workers)
+	var wg sync.WaitGroup
+	for _, c := range chats {
+		jid := c.JID
+		if jid == "" {
+			continue
+		}
+		s.mu.RLock()
+		_, has := s.avatarRes[jid]
+		s.mu.RUnlock()
+		if has {
+			continue
+		}
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(j string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			s.loadAvatar(j, false)
+		}(jid)
+	}
+	wg.Wait()
+}
+
+func (s *Sidebar) loadAvatar(jid string, recache bool) {
+	dataURL, err := s.fa.api.GetCachedAvatar(jid, recache)
+	if err != nil || dataURL == "" {
+		return
+	}
+	res := resourceFromDataURL(jid, dataURL)
+	if res == nil {
+		return
+	}
+	s.mu.Lock()
+	s.avatarRes[jid] = res
+	s.mu.Unlock()
+	fyne.Do(func() {
+		if s.list != nil {
+			s.list.Refresh()
+		}
+	})
+}
+
+func resourceFromDataURL(name, dataURL string) fyne.Resource {
+	i := strings.Index(dataURL, ",")
+	if i < 0 {
+		return nil
+	}
+	raw, err := base64.StdEncoding.DecodeString(dataURL[i+1:])
+	if err != nil || len(raw) == 0 {
+		return nil
+	}
+	return fyne.NewStaticResource(name, raw)
 }
 
 func (s *Sidebar) Content() fyne.CanvasObject { return s.root }
@@ -543,6 +725,9 @@ func chatDisplayName(c api.ChatElement) string {
 	}
 	if name == "" {
 		name = strings.TrimSpace(c.Short)
+	}
+	if name == "" {
+		name = strings.TrimSpace(c.Phno)
 	}
 	if name == "" {
 		name = c.JID
@@ -559,8 +744,11 @@ func shortSender(sender string) string {
 	if i := strings.Index(s, "@"); i > 0 {
 		s = s[:i]
 	}
-	if len(s) > 12 {
-		s = s[:12]
+	if s == "" {
+		return sender
+	}
+	if len([]rune(s)) > 14 {
+		s = string([]rune(s)[:14])
 	}
 	return s
 }
@@ -589,19 +777,20 @@ func formatChatTimestamp(ts int64) string {
 	msgDay := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
 	switch {
 	case !msgDay.Before(today):
-		return t.Format("15:04")
+		return t.Format("3:04 PM")
 	case !msgDay.Before(yesterday):
 		return "Yesterday"
-	case now.Sub(t) < 7*24*time.Hour:
-		return t.Format("Mon")
 	default:
 		return t.Format("02/01/2006")
 	}
 }
 
 func sidebarAvatarInitial(name, jid string) string {
-	if isGroupJID(jid) {
+	if strings.HasSuffix(jid, "@g.us") {
 		return "\U0001F465"
+	}
+	if strings.HasSuffix(jid, "@newsletter") {
+		return "\U0001F4E2"
 	}
 	n := strings.TrimSpace(name)
 	if n == "" || n == jid {
@@ -619,6 +808,7 @@ func avatarColor(jid string) color.Color {
 		{R: 0xf7, G: 0x9c, B: 0x4c, A: 255},
 		{R: 0xe5, G: 0x42, B: 0xa3, A: 255},
 		{R: 0x06, G: 0xcf, B: 0x9c, A: 255},
+		{R: 0x7f, G: 0x66, B: 0xff, A: 255},
 	}
 	var h uint32
 	for _, c := range jid {
@@ -635,4 +825,9 @@ func spacer(w, h float32) fyne.CanvasObject {
 		w = 1
 	}
 	return container.NewGridWrap(fyne.NewSize(w, h), canvas.NewRectangle(color.Transparent))
+}
+
+
+func (s *Sidebar) Reload() {
+	go s.fetchChats()
 }

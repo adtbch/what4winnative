@@ -95,28 +95,26 @@ func (a *Api) GetChatList() ([]ChatElement, error) {
 			// has connected, so it must never touch the network. Empty names
 			// are healed asynchronously by repairGroupNames after Connected.
 			name := ""
-			if groupInfo, err := a.cw.FetchGroup(cm.JID.String()); err == nil {
-				name = groupInfo.Name
-				parentJID = groupInfo.ParentJID
-				parentName = groupInfo.ParentName
-				if parentName == "" && parentJID != "" {
-					parentName = a.cw.ParentCommunityName(parentJID)
+			if a.cw != nil {
+				groupInfo, gerr := a.cw.FetchGroup(cm.JID.String())
+				if gerr == nil {
+					name = groupInfo.Name
+					parentJID = groupInfo.ParentJID
+					parentName = groupInfo.ParentName
+					if parentName == "" && parentJID != "" {
+						parentName = a.cw.ParentCommunityName(parentJID)
+					}
+					isCommunityGroup = parentJID != ""
+					isCommunityParent = groupInfo.IsParent
+					isDefaultSub = groupInfo.IsDefaultSub
+				} else {
+					log.Println("GetChatList: group lookup failed, using fallback:", cm.JID.String(), gerr)
 				}
-				isCommunityGroup = parentJID != ""
-				isCommunityParent = groupInfo.IsParent
-				isDefaultSub = groupInfo.IsDefaultSub
-			} else {
-				log.Println("GetChatList: group lookup failed, using fallback:", cm.JID.String(), err)
 			}
 			if name == "" {
-				// A single unknown/left group must not blank the whole chat
-				// list. Fall back to the JID so the chat still renders.
 				name = cm.JID.User
 			}
-			fc = Contact{
-				JID:      cm.JID.String(),
-				FullName: name,
-			}
+			fc = Contact{JID: cm.JID.String(), FullName: name}
 		} else {
 			contact, err := a.waClient.Store.Contacts.GetContact(a.ctx, cm.JID)
 			if err != nil {
