@@ -16,15 +16,15 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
 
 ## Progress
 
-**1 / 14 task selesai** — 0 / 26 komponen terverifikasi.
+**2 / 14 task selesai** — 0 / 26 komponen terverifikasi.
 
 | Fase | Selesai | Total |
 |---|---|---|
-| 0 — Fondasi | 1 | 3 |
+| 0 — Fondasi | 2 | 3 |
 | 1 — Sidebar | 0 | 6 |
 | 2 — Chat | 0 | 4 |
 | 3 — Panel & layar | 0 | 2 |
-| **Total** | **1** | **15** |
+| **Total** | **2** | **15** |
 
 ---
 
@@ -38,11 +38,12 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
   - [x] commit `0984f12` — `chore(fyne): baseline before component-by-component parity pass`
   - Spec: `frontend/src/style.css` `@theme` · File: `fyneui/theme_wa.go`
 
-- [ ] **T2 · Harness render PNG + helper bersama**
-  - [ ] `fyneui/golden_test.go`: `renderPNG`, `blankImage`, `diffRatio`, `assertNotBlank`, `assertPixel`, `crop`
-  - [ ] `fyneui/layout.go`: `padLayout`, `truncateToWidth`, `avatarColor`, `initials` (pindah dari `sidebar.go`)
-  - [ ] `TestHarnessRendersColor` PASS + `testdata/out/harness.png` diperiksa
-  - [ ] commit `test(fyne): headless golden-render harness for component parity`
+- [x] **T2 · Harness render PNG + helper bersama**
+  - [x] `fyneui/golden_test.go`: `renderPNG`, `blankImage`, `diffRatio`, `assertNotBlank`, `assertPixel`, `crop`
+  - [x] `fyneui/layout.go`: `padLayout`, `minSizeLayout`, `spacer`, `truncateToWidth`, `avatarColor`, `initials` (pindah dari `sidebar.go`)
+  - [x] `TestHarnessRendersColor` PASS + `testdata/out/harness.png` diperiksa (kotak merah solid 40×40, tidak blank)
+  - [x] `TestTruncateToWidth` + `TestAvatarHelpers` PASS
+  - [x] commit `f98d86f` — `test(fyne): headless golden-render harness for component parity`
   - File: `fyneui/golden_test.go`, `fyneui/layout.go`
 
 - [ ] **T3 · Test paritas token vs style.css**
