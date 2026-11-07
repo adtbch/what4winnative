@@ -150,15 +150,15 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
   - Limit: corner per-sisi Fyne seragam; receipt status tak ada di `DecodedMessageInfo` (tick read-intent). Emoji-only tetap card bg (React: `bg-transparent` hanya sticker `:126,442`)
   - Spec: `MessageItem.tsx:406-560` · File: `fyneui/bubble.go`,`chatview.go`
 
-- [ ] **T11 · Bubble media (image/video/sticker/audio/document)**
-  - [ ] `newMediaBubble(mediaBubbleData{Kind,Thumb,Caption,FileName,SizeLabel,Width,Height,MaxWidth})`
-  - [ ] image/video: thumbnail rounded 8 + placeholder `waPanel2`; video + overlay play 48px
-  - [ ] sticker: **tanpa** background bubble
-  - [ ] audio: pill + tombol play; document: kartu + chip merah + nama file
-  - [ ] fetch chain tetap `GetImageThumbnail` → `GetCachedImage` → `DownloadMedia` (video: `GetVideoThumbnail`)
-  - [ ] `TestMediaPlaceholderGolden`, `TestStickerHasNoBubbleBackground`, `TestDocumentBubbleGolden` PASS · PNG diperiksa
-  - [ ] commit `feat(fyne): media bubble component with placeholder and sticker variants`
-  - Spec: `MediaContent.tsx` · File: `fyneui/bubble_media.go`
+- [x] **T11 · Bubble media** — `fccf8a7`
+  - [x] `newMediaBubble(mediaBubbleData{Kind,Thumb,Caption,FileName,SizeLabel,Width,Height,MaxWidth,IsGif})` + image/video/sticker/audio/doc builders
+  - [x] image/video: placeholder `waPanel2 #242626` rounded 8, `mediaBox` sizing; video overlay play 48px (circle `waPlayOverlay` + `▶`)
+  - [x] sticker: **tanpa** bubble background (`wrapBubble` skips card untuk `StickerMessage`; `newStickerBubble` nil-thumb = text only)
+  - [x] audio: pill + play circle hijau; document: red chip `#ef4444` + nama/ext + `↓`
+  - [x] fetch chain dipertahankan: `mediaBlock` → `GetVideoThumbnail` (video) / `GetImageThumbnail` → `GetCachedImage` → `DownloadMedia` (image/sticker) + async swap `canvas.Image`
+  - [x] `TestMediaPlaceholderGolden`,`TestStickerHasNoBubbleBackground`,`TestDocumentBubbleGolden` PASS · PNG `fyneui/testdata/out/media_{image,video}_placeholder.png`,`media_sticker_nobg.png`,`media_document.png`
+  - Limit: React `MediaContent` runtime metrics/preview interaksi (lightbox/download) tak di-harness headless wails; audio/doc sizing/font ±px engine
+  - Spec: `MediaContent.tsx`,`MessageItem.tsx:320-403` · File: `fyneui/bubble_media.go`,`chatview.go`
 
 - [ ] **T12 · Message list — day separator + grouping**
   - [ ] `buildListItems(msgs)`: `itemDay` saat tanggal lokal berubah, `FirstInGroup` saat `IsFromMe`/`Sender` berubah (**tanpa** aturan gap waktu)
