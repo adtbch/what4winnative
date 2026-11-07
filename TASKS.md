@@ -180,12 +180,13 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
 
 ## Fase 3 — Panel & layar lain
 
-- [ ] **T14a · Chat info panel**
-  - [ ] `newChatInfoPanel(chatName, chatType, onClose)` + `SetDetails(name, subtitle, about)`
-  - [ ] panel kanan 320px, header 64px + tombol close, avatar 96px, nama 18px, section About
-  - [ ] `TestChatInfoPanelGolden` PASS · PNG `chat_info.png` diperiksa
-  - [ ] commit `feat(fyne): chat info panel`
-  - Spec: `ChatInfo.tsx` · File: `fyneui/chat_info.go`
+- [x] **T14a · Chat info panel** — `f5bc584`
+  - [x] `newChatInfoPanel(onClose)`+`Set(chatInfoData)`: 320px, header 64px+close, left hairline white/5, bg `waPanel`
+  - [x] avatar 96px (initial/res), nama 18px bold center, subtitle, About; `Contact Info`/`Group Info`
+  - [x] wired `ChatView.toggleInfo()` via header info → right panel in `mainSplit` (0px closed)
+  - [x] `TestChatInfoPanel{Golden,GroupTitle,Close}` PASS; PNG `out/chat_info.png` (local)
+  - Limit: Search/Mute/Media, participants, block/exit = polish/YAGNI
+  - Spec: `ChatInfo.tsx` · File: `fyneui/chat_info.go`,`chatview.go`
 
 - [ ] **T14b · Settings screen**
   - [ ] `newSettingsScreen(onBack)`: header + back, baris Account/Privacy/Chats/Notifications/Advanced/Log out (ikon + chevron, tap = stub log)
