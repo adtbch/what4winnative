@@ -359,10 +359,15 @@ func cvWrapBubble(fromMe, first bool, content *store.DecodedMessageContent, inne
 		card.CornerRadius = bubbleCorner(fromMe, first)
 		stack = container.NewMax(card, inner)
 	}
-	if fromMe {
-		return container.NewBorder(spacer(1, 3), spacer(1, 3), spacer(70, 1), spacer(12, 1), stack)
+	// spacing: MessageList.tsx:162 firstInGroup?pt-2 pb-px : py-px (8/1 vs 1/1)
+	top := float32(1)
+	if first {
+		top = 8
 	}
-	return container.NewBorder(spacer(1, 3), spacer(1, 3), spacer(12, 1), spacer(70, 1), stack)
+	if fromMe {
+		return container.NewBorder(spacer(1, top), spacer(1, 1), spacer(70, 1), spacer(12, 1), stack)
+	}
+	return container.NewBorder(spacer(1, top), spacer(1, 1), spacer(12, 1), spacer(70, 1), stack)
 }
 
 func (cv *ChatView) wrapBubble(fromMe, first bool, content *store.DecodedMessageContent, inner fyne.CanvasObject) fyne.CanvasObject {
