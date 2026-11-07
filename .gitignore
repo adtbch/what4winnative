@@ -17,3 +17,7 @@ result
 *.AppImage
 docs/
 .agent/
+/fyne_test.exe
+/fyne.exe
+/nul
+fyneui/testdata/out/*.png

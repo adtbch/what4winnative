@@ -3,7 +3,9 @@ package fyneui
 import (
 	"context"
 	"fmt"
+	"image/color"
 	"log"
+	"sort"
 	"strings"
 	"time"
 
@@ -11,6 +13,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/lugvitc/whats4linux/api"
@@ -18,6 +21,8 @@ import (
 	"go.mau.fi/whatsmeow/types"
 )
 
+// ChatView mirrors frontend/src/screens/ChatDetail.tsx +
+// components/chat/{MessageList,MessageItem,ChatInput}.tsx.
 type ChatView struct {
 	fa         *FyneApp
 	jid        string
@@ -29,50 +34,62 @@ type ChatView struct {
 	headerSub  *canvas.Text
 	avatarTxt  *canvas.Text
 	avatarBg   *canvas.Circle
+	avatarImg  *canvas.Image
 	cancel     context.CancelFunc
+
+	maxBubble float32
+	rendered  map[string]bool
+	lastDay   string
 }
 
 func NewChatView(fa *FyneApp, jid string) *ChatView {
 	ctx, cancel := context.WithCancel(fa.ctx)
 	cv := &ChatView{
-		fa:       fa,
-		jid:      jid,
-		chatName: chatNameFromJID(jid),
-		messages: container.NewVBox(),
-		cancel:   cancel,
+		fa:        fa,
+		jid:       jid,
+		chatName:  chatNameFromJID(jid),
+		messages:  container.NewVBox(),
+		cancel:    cancel,
+		maxBubble: 560,
+		rendered:  make(map[string]bool),
 	}
 	cv.loadHeader()
 	go cv.loadMessages(ctx)
-	go cv.listenNewMessages(ctx)
+	go cv.listenEvents(ctx)
 	return cv
 }
 
 func (cv *ChatView) loadHeader() {
 	cv.headerName = canvas.NewText(cv.chatName, waText)
-	cv.headerName.TextSize = 15
+	cv.headerName.TextSize = 16
 	cv.headerName.TextStyle = fyne.TextStyle{Bold: true}
 	cv.headerSub = canvas.NewText("click here for contact info", waMuted)
 	cv.headerSub.TextSize = 12
 	cv.avatarTxt = canvas.NewText(sidebarAvatarInitial(cv.chatName, cv.jid), waText)
 	cv.avatarTxt.Alignment = fyne.TextAlignCenter
-	cv.avatarTxt.TextSize = 14
+	cv.avatarTxt.TextSize = 15
 	cv.avatarTxt.TextStyle = fyne.TextStyle{Bold: true}
 	cv.avatarBg = canvas.NewCircle(avatarColor(cv.jid))
+	cv.avatarImg = canvas.NewImageFromResource(nil)
+	cv.avatarImg.FillMode = canvas.ImageFillCover
+	cv.avatarImg.Hide()
 
 	go func() {
 		name := cv.chatName
 		sub := "click here for contact info"
-		if parsed, perr := types.ParseJID(cv.jid); perr == nil {
-			if contact, err := cv.fa.api.GetContact(parsed); err == nil && contact != nil {
-			if n := strings.TrimSpace(contact.FullName); n != "" {
-				name = n
-			} else if n := strings.TrimSpace(contact.PushName); n != "" {
-				name = n
-			}
-		}
-		}
 		if isGroupJID(cv.jid) {
 			sub = "group info"
+			if gi, err := cv.fa.api.GetGroupInfo(cv.jid); err == nil && strings.TrimSpace(gi.GroupName) != "" {
+				name = strings.TrimSpace(gi.GroupName)
+			}
+		} else if parsed, err := types.ParseJID(cv.jid); err == nil {
+			if contact, cerr := cv.fa.api.GetContact(parsed); cerr == nil && contact != nil {
+				if n := strings.TrimSpace(contact.FullName); n != "" {
+					name = n
+				} else if n := strings.TrimSpace(contact.PushName); n != "" {
+					name = n
+				}
+			}
 		}
 		cv.chatName = name
 		fyne.Do(func() {
@@ -88,55 +105,84 @@ func (cv *ChatView) loadHeader() {
 				cv.avatarTxt.Text = sidebarAvatarInitial(name, cv.jid)
 				cv.avatarTxt.Refresh()
 			}
-			if cv.avatarBg != nil {
-				cv.avatarBg.FillColor = avatarColor(cv.jid)
-				cv.avatarBg.Refresh()
-			}
 		})
+		// avatar photo: same backend call the React list/detail header uses
+		if url, err := cv.fa.api.GetCachedAvatar(cv.jid, false); err == nil && url != "" {
+			if res := dataURLResource(cv.jid, url); res != nil {
+				fyne.Do(func() {
+					if cv.avatarImg != nil {
+						cv.avatarImg.Resource = res
+						cv.avatarImg.Show()
+						cv.avatarImg.Refresh()
+					}
+				})
+			}
+		}
 	}()
 }
 
 func (cv *ChatView) loadMessages(ctx context.Context) {
-	msgs, err := cv.fa.api.FetchMessagesPaged(cv.jid, 30, 0, "")
+	msgs, err := cv.fa.api.FetchMessagesPaged(cv.jid, 80, 0, "")
 	log.Println("chat", cv.jid, "msgs:", len(msgs), err)
 	if err != nil {
 		log.Println("FetchMessages:", cv.jid, err)
 		return
 	}
+	sort.SliceStable(msgs, func(i, j int) bool { return msgTime(msgs[i]).Before(msgTime(msgs[j])) })
 	fyne.Do(func() {
 		cv.messages.Objects = nil
+		cv.lastDay = ""
 		if len(msgs) == 0 {
 			empty := canvas.NewText("No messages here yet.", waMuted)
 			empty.Alignment = fyne.TextAlignCenter
 			empty.TextSize = 13
 			cv.messages.Add(container.NewCenter(container.NewPadded(empty)))
 		}
-		var prevDay string
 		for _, m := range msgs {
-			if m.Info.IsFromMe {
-				// read mark: best-effort omitted in Fyne view
-			}
-			day := ""
-			if day != "" && day != prevDay {
-				cv.messages.Add(daySeparator(day))
-				prevDay = day
-			}
-			cv.messages.Add(cv.bubble(m))
+			cv.addMessageLocked(m)
 		}
 		cv.messages.Refresh()
 		if cv.scroll != nil {
 			cv.scroll.ScrollToBottom()
 		}
 	})
+	// mark read once the messages are on screen, like the React view does
+	go func() {
+		ids := make([]string, 0, len(msgs))
+		for _, m := range msgs {
+			if !m.Info.IsFromMe && m.Info.ID != "" {
+				ids = append(ids, m.Info.ID)
+			}
+		}
+		if len(ids) > 0 {
+			if err := cv.fa.api.MarkRead(cv.jid, ids, "read"); err != nil {
+				log.Println("MarkRead:", err)
+			}
+		}
+	}()
 }
 
-func (cv *ChatView) listenNewMessages(ctx context.Context) {
-	ch := SubscribeEvent("wa:new_message")
+// addMessageLocked appends one message plus its day separator. Caller must
+// already be on the Fyne thread.
+func (cv *ChatView) addMessageLocked(m store.DecodedMessage) {
+	if label := messageDayLabel(msgTime(m)); label != "" && label != cv.lastDay {
+		cv.messages.Add(daySeparator(label))
+		cv.lastDay = label
+	}
+	if m.Info.ID != "" {
+		cv.rendered[m.Info.ID] = true
+	}
+	cv.messages.Add(cv.bubble(m))
+}
+
+func (cv *ChatView) listenEvents(ctx context.Context) {
+	newCh := SubscribeEvent("wa:new_message")
+	updCh := SubscribeEvent("wa:message_update")
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case data := <-ch:
+		case data := <-newCh:
 			msg, ok := data.(map[string]any)
 			if !ok {
 				continue
@@ -145,75 +191,325 @@ func (cv *ChatView) listenNewMessages(ctx context.Context) {
 			if chatID != cv.jid {
 				continue
 			}
-			text, _ := msg["text"].(string)
-			isFromMe, _ := msg["isFromMe"].(bool)
-			ts, _ := msg["timestamp"].(string)
-			if ts == "" {
-				ts = time.Now().Format("15:04")
-			}
-			mtype, _ := msg["messageType"].(string)
-			if strings.TrimSpace(text) == "" {
-				text = messageTypeFallback(mtype)
-			}
-			go cv.loadHeader()
-			fyne.Do(func() {
-				cv.messages.Add(cv.textBubble(text, isFromMe, ts))
-				cv.messages.Refresh()
-				if cv.scroll != nil {
-					cv.scroll.ScrollToBottom()
-				}
-			})
+			go cv.appendLatest()
+		case <-updCh:
+			go cv.appendLatest()
 		}
 	}
 }
 
-func (cv *ChatView) bubble(msg store.DecodedMessage) fyne.CanvasObject {
-	body := extractDecodedBody(msg)
-	ts := formatMsgTimestamp(msg.Info.Timestamp)
-	if body == "" {
-		body = messageTypeFallback(string(msg.Type))
+// appendLatest re-reads the newest page so every row is built from the same
+// DecodedMessage shape as the initial load.
+func (cv *ChatView) appendLatest() {
+	msgs, err := cv.fa.api.FetchMessagesPaged(cv.jid, 25, 0, "")
+	if err != nil || len(msgs) == 0 {
+		return
 	}
-	return cv.textBubble(body, msg.Info.IsFromMe, ts)
+	sort.SliceStable(msgs, func(i, j int) bool { return msgTime(msgs[i]).Before(msgTime(msgs[j])) })
+	fyne.Do(func() {
+		for _, m := range msgs {
+			if m.Info.ID != "" && cv.rendered[m.Info.ID] {
+				continue
+			}
+			cv.addMessageLocked(m)
+		}
+		cv.messages.Refresh()
+		if cv.scroll != nil {
+			cv.scroll.ScrollToBottom()
+		}
+	})
 }
 
-func (cv *ChatView) textBubble(text string, isFromMe bool, ts string) fyne.CanvasObject {
+func msgTime(m store.DecodedMessage) time.Time {
+	ts := strings.TrimSpace(m.Info.Timestamp)
+	if ts == "" {
+		return time.Time{}
+	}
+	for _, layout := range []string{time.RFC3339Nano, time.RFC3339, "2006-01-02 15:04:05"} {
+		if t, err := time.Parse(layout, ts); err == nil {
+			return t.Local()
+		}
+	}
+	return time.Time{}
+}
+
+func formatMsgTimestamp(ts string) string {
+	t := msgTime(store.DecodedMessage{Info: store.DecodedMessageInfo{Timestamp: ts}})
+	if t.IsZero() {
+		return ""
+	}
+	return t.Format("15:04")
+}
+
+// bubble renders one message like MessageItem.tsx: media block for
+// image/video/sticker/audio/document, HTML rich text for text, meta row with
+// time + ticks inside the bubble.
+func (cv *ChatView) bubble(m store.DecodedMessage) fyne.CanvasObject {
+	fromMe := m.Info.IsFromMe
 	bg := waRecv
-	align := fyne.TextAlignLeading
-	outerPadLeft := float32(14)
-	outerPadRight := float32(90)
-	if isFromMe {
+	if fromMe {
 		bg = waSent
-		align = fyne.TextAlignTrailing
-		outerPadLeft = 90
-		outerPadRight = 14
 	}
-	txt := widget.NewLabel(text)
-	txt.Wrapping = fyne.TextWrapWord
-	txt.Alignment = align
-
-	meta := canvas.NewText(ts, waTime)
-	meta.TextSize = 11
-	meta.Alignment = fyne.TextAlignTrailing
-	metaRow := container.NewHBox(meta)
-	if isFromMe {
-		ticks := canvas.NewText(" ✓✓", waMuted)
-		ticks.TextSize = 11
-		metaRow = container.NewHBox(meta, ticks)
-	}
-
 	card := canvas.NewRectangle(bg)
-	card.CornerRadius = 9
-	content := container.NewVBox(container.NewPadded(txt), container.NewPadded(container.NewBorder(nil, nil, nil, metaRow, canvas.NewRectangle(waBg))))
-	bubble := container.NewMax(card, content)
+	card.CornerRadius = 8
 
-	side := container.NewMax(canvas.NewRectangle(waBg))
-	wrapped := container.NewBorder(spacer(1, 2), spacer(1, 2), spacer(outerPadLeft, 1), spacer(outerPadRight, 1), bubble)
-	return container.NewMax(side, wrapped)
+	maxW := cv.maxBubble
+	if maxW <= 0 {
+		maxW = 560
+	}
+
+	var body fyne.CanvasObject
+	content := m.Content
+	switch {
+	case content == nil:
+		body = cv.textBlock(messageText(m), maxW)
+	case content.ImageMessage != nil:
+		body = cv.mediaBlock(m, mediaKindImage, maxW)
+		if c := strings.TrimSpace(content.ImageMessage.Caption); c != "" {
+			body = container.NewVBox(body, cv.textBlock(c, maxW))
+		}
+	case content.VideoMessage != nil:
+		body = cv.mediaBlock(m, mediaKindVideo, maxW)
+		if c := strings.TrimSpace(content.VideoMessage.Caption); c != "" {
+			body = container.NewVBox(body, cv.textBlock(c, maxW))
+		}
+	case content.StickerMessage != nil:
+		body = cv.mediaBlock(m, mediaKindSticker, maxW)
+	case content.AudioMessage != nil:
+		body = cv.audioBlock()
+	case content.DocumentMessage != nil:
+		body = cv.documentBlock(m)
+	default:
+		body = cv.textBlock(messageText(m), maxW)
+	}
+	// MessageItem.tsx renders this for every content type it cannot draw.
+	if strings.TrimSpace(htmlToText(messageText(m))) == "" && content == nil {
+		body = unsupportedText()
+	}
+
+	inner := container.NewVBox(container.NewPadded(body), cv.metaRow(m, fromMe))
+	if isGroupJID(cv.jid) && !fromMe {
+		name := canvas.NewText(senderLabel(m), waGreen)
+		name.TextSize = 12
+		name.TextStyle = fyne.TextStyle{Bold: true}
+		inner = container.NewVBox(container.NewPadded(name), inner)
+	}
+	// MessageItem.tsx: stickers float with no bubble background.
+	var stack fyne.CanvasObject = inner
+	if content == nil || content.StickerMessage == nil {
+		stack = container.NewMax(card, inner)
+	}
+
+	if fromMe {
+		return container.NewBorder(spacer(1, 3), spacer(1, 3), spacer(70, 1), spacer(12, 1), stack)
+	}
+	return container.NewBorder(spacer(1, 3), spacer(1, 3), spacer(12, 1), spacer(70, 1), stack)
+}
+
+func (cv *ChatView) metaRow(m store.DecodedMessage, fromMe bool) fyne.CanvasObject {
+	row := container.NewHBox()
+	if m.Edited {
+		e := canvas.NewText("Edited ", waTime)
+		e.TextSize = 11
+		row.Add(e)
+	}
+	ts := canvas.NewText(formatMsgTimestamp(m.Info.Timestamp), waTime)
+	ts.TextSize = 11
+	row.Add(ts)
+	if fromMe {
+		ticks := canvas.NewText(" ✓✓", waTick)
+		ticks.TextSize = 11
+		row.Add(ticks)
+	}
+	return container.NewHBox(spacer(1, 1), row)
+}
+
+// textBlock renders message HTML (api.processMessageText output) at maxW.
+func (cv *ChatView) textBlock(src string, maxW float32) fyne.CanvasObject {
+	inner := maxW - 28
+	if inner < 60 {
+		inner = 60
+	}
+	if strings.TrimSpace(htmlToText(src)) == "" {
+		return canvas.NewText(" ", waText)
+	}
+	box, w, _ := htmlTextBlock(src, inner, 14)
+	if w < 24 {
+		w = 24
+	}
+	return container.NewGridWrap(fyne.NewSize(minF(w+2, inner), box.MinSize().Height), box)
+}
+
+func (cv *ChatView) mediaBlock(m store.DecodedMessage, kind int, maxW float32) fyne.CanvasObject {
+	w, h := mediaDims(m)
+	size := mediaBox(w, h)
+	if kind == mediaKindSticker {
+		size = fyne.NewSize(150, 150)
+	}
+	if size.Width > maxW {
+		size.Width = maxW
+	}
+
+	img := canvas.NewImageFromResource(nil)
+	img.FillMode = canvas.ImageFillContain
+	img.SetMinSize(size)
+
+	holder := canvas.NewRectangle(waPanel2)
+	holder.CornerRadius = 6
+	// Placeholder label behind the image so a bubble is never blank while the
+	// media is still being fetched (React shows a blurred placeholder box).
+	ph := "📷 Photo"
+	switch kind {
+	case mediaKindVideo:
+		ph = "🎥 Video"
+	case mediaKindSticker:
+		ph = "Sticker"
+	}
+	phTxt := canvas.NewText(ph, waMuted)
+	phTxt.TextSize = 12
+	phTxt.Alignment = fyne.TextAlignCenter
+	box := container.NewMax(holder, container.NewCenter(phTxt), img)
+	box.Resize(size)
+
+	id := m.Info.ID
+	chatID := cv.jid
+	go func() {
+		var dataURL string
+		if kind == mediaKindVideo {
+			dataURL = cv.fa.api.GetVideoThumbnail(id)
+		} else {
+			dataURL = cv.fa.api.GetImageThumbnail(id)
+			// MediaContent.tsx auto-downloads images/stickers as soon as they are
+			// on screen: the embedded thumbnail is only a placeholder.
+			if dataURL == "" {
+				if u, err := cv.fa.api.GetCachedImage(id); err == nil {
+					dataURL = u
+				}
+			}
+			if dataURL == "" {
+				if u, err := cv.fa.api.DownloadMedia(chatID, id); err == nil {
+					dataURL = u
+				} else {
+					log.Println("DownloadMedia:", id, err)
+				}
+			}
+		}
+		if dataURL == "" {
+			return
+		}
+		res := dataURLResource(id, dataURL)
+		if res == nil {
+			return
+		}
+		fyne.Do(func() {
+			img.Resource = res
+			img.Refresh()
+			box.Refresh()
+		})
+	}()
+
+	if kind == mediaKindVideo {
+		play := canvas.NewText("▶", waWhite)
+		play.TextSize = 34
+		play.Alignment = fyne.TextAlignCenter
+		circle := canvas.NewCircle(waPlayOverlay)
+		overlay := container.NewCenter(container.NewGridWrap(fyne.NewSize(56, 56), container.NewMax(circle, container.NewCenter(play))))
+		return container.NewMax(box, overlay)
+	}
+	return box
+}
+
+func (cv *ChatView) audioBlock() fyne.CanvasObject {
+	icon := canvas.NewText("▶", waText)
+	icon.TextSize = 20
+	label := canvas.NewText("Audio message", waMuted)
+	label.TextSize = 13
+	row := container.NewHBox(container.NewGridWrap(fyne.NewSize(36, 36), container.NewCenter(icon)), label)
+	holder := canvas.NewRectangle(waPanel2)
+	holder.CornerRadius = 6
+	return container.NewMax(holder, container.NewPadded(row))
+}
+
+func (cv *ChatView) documentBlock(m store.DecodedMessage) fyne.CanvasObject {
+	name := "Document"
+	if m.Content != nil && m.Content.DocumentMessage != nil && strings.TrimSpace(m.Content.DocumentMessage.FileName) != "" {
+		name = m.Content.DocumentMessage.FileName
+	}
+	badge := canvas.NewText("📄", waText)
+	badge.TextSize = 22
+	title := canvas.NewText(truncateRunes(name, 38), waText)
+	title.TextSize = 13
+	sub := canvas.NewText("Document", waMuted)
+	sub.TextSize = 11
+	col := container.NewVBox(title, sub)
+	row := container.NewBorder(nil, nil, container.NewGridWrap(fyne.NewSize(40, 40), container.NewCenter(badge)), nil, col)
+	holder := canvas.NewRectangle(waPanel2)
+	holder.CornerRadius = 6
+	return container.NewMax(holder, container.NewPadded(row))
+}
+
+const (
+	mediaKindImage = iota
+	mediaKindVideo
+	mediaKindSticker
+)
+
+func mediaDims(m store.DecodedMessage) (int, int) {
+	if m.Content == nil {
+		return 0, 0
+	}
+	switch {
+	case m.Content.ImageMessage != nil:
+		return m.Content.ImageMessage.Width, m.Content.ImageMessage.Height
+	case m.Content.VideoMessage != nil:
+		return m.Content.VideoMessage.Width, m.Content.VideoMessage.Height
+	case m.Content.StickerMessage != nil:
+		return m.Content.StickerMessage.Width, m.Content.StickerMessage.Height
+	}
+	return 0, 0
+}
+
+// messageText returns the body the React item renders: HTML for text messages.
+func messageText(m store.DecodedMessage) string {
+	if m.Content == nil {
+		return ""
+	}
+	if m.Content.Conversation != "" {
+		return m.Content.Conversation
+	}
+	if m.Content.ExtendedTextMessage != nil && m.Content.ExtendedTextMessage.Text != "" {
+		return m.Content.ExtendedTextMessage.Text
+	}
+	if m.Poll != nil && m.Poll.Name != "" {
+		return "📊 " + m.Poll.Name
+	}
+	return ""
+}
+
+// unsupportedText matches MessageItem.tsx's fallback for content types the UI
+// cannot render (senderKeyDistribution, protocol messages, empty rows).
+func unsupportedText() fyne.CanvasObject {
+	t := canvas.NewText("Unsupported Message Type", waMuted)
+	t.TextSize = 12
+	t.TextStyle = fyne.TextStyle{Italic: true}
+	return t
+}
+
+func senderLabel(m store.DecodedMessage) string {
+	name := strings.TrimSpace(m.Info.PushName)
+	if name == "" {
+		name = shortSender(m.Info.Sender)
+	}
+	if name == "" {
+		name = "Unknown"
+	}
+	return "~ " + name
 }
 
 func daySeparator(label string) fyne.CanvasObject {
 	t := canvas.NewText(label, waMuted)
-	t.TextSize = 12
+	t.TextSize = 11
+	t.TextStyle = fyne.TextStyle{Bold: true}
 	bg := canvas.NewRectangle(waPanel2)
 	bg.CornerRadius = 8
 	box := container.NewMax(bg, container.NewPadded(t))
@@ -229,132 +525,107 @@ func (cv *ChatView) sendMessage() {
 	go func() {
 		if _, err := cv.fa.api.SendMessage(cv.jid, api.MessageContent{Type: "text", Text: text}); err != nil {
 			log.Println("SendMessage:", err)
-			fyne.Do(func() {
-				dialog.ShowError(fmt.Errorf("send failed: %w", err), cv.fa.win)
-			})
+			fyne.Do(func() { dialog.ShowError(fmt.Errorf("send failed: %w", err), cv.fa.win) })
 			return
 		}
-		fyne.Do(func() {
-			cv.messages.Add(cv.textBubble(text, true, time.Now().Format("15:04")))
-			cv.messages.Refresh()
-			if cv.scroll != nil {
-				cv.scroll.ScrollToBottom()
-			}
-		})
+		cv.appendLatest()
 	}()
 }
 
 func (cv *ChatView) Content() fyne.CanvasObject {
-	back := widget.NewButton("←", func() { cv.fa.state.SetSelectedChatID(""); fyne.Do(func(){ if cv.fa.chatPane != nil { cv.fa.chatPane.Objects = []fyne.CanvasObject{cv.fa.emptyPane()}; cv.fa.chatPane.Refresh() } }) })
-	back.Importance = widget.LowImportance
-	avatar := container.NewGridWrap(fyne.NewSize(40, 40), container.NewMax(cv.avatarBg, container.NewCenter(cv.avatarTxt)))
-	nameCol := container.NewVBox(spacer(1, 2), cv.headerName, cv.headerSub)
-	left := container.NewHBox(container.NewGridWrap(fyne.NewSize(36, 36), back), spacer(4, 1), avatar, spacer(8, 1), nameCol)
-	actions := container.NewHBox(
-		widget.NewButton("🔍", func() {}),
-		widget.NewButton("⋮", func() {}),
-	)
+	back := newIconButton("cv-back", iconBack, 20, waMuted, func() {
+		cv.cancel()
+		cv.fa.OpenEmptyChat()
+	})
+
+	avatarInner := container.NewMax(cv.avatarBg)
+	if cv.avatarImg != nil {
+		avatarInner.Add(cv.avatarImg)
+	}
+	avatarInner.Add(container.NewCenter(cv.avatarTxt))
+	avatar := container.NewGridWrap(fyne.NewSize(40, 40), avatarInner)
+
+	nameCol := container.NewVBox(cv.headerName, cv.headerSub)
+	left := container.NewHBox(container.NewPadded(back), spacer(6, 1), avatar, spacer(10, 1), nameCol)
+
+	searchBtn := newIconButton("cv-search", iconSearch, 20, waMuted, func() {})
+	menuBtn := newIconButton("cv-more", iconMore, 20, waMuted, func() {})
+	actions := container.NewHBox(container.NewPadded(searchBtn), menuBtn, spacer(8, 1))
+
 	headerBg := canvas.NewRectangle(waPanel)
-	header := container.NewMax(headerBg, container.NewPadded(container.NewBorder(nil, nil, left, actions, canvas.NewRectangle(waPanel))))
+	headerBottom := canvas.NewRectangle(waDivider)
+	headerBottom.SetMinSize(fyne.NewSize(0, 1))
+	headerRow := container.NewBorder(nil, nil, left, actions, nil)
+	header := container.NewMax(headerBg, container.NewBorder(nil, headerBottom, nil, nil,
+		container.NewGridWrap(fyne.NewSize(0, 64), headerRow)))
 
-	cv.scroll = container.NewVScroll(container.NewPadded(cv.messages))
-	bg := chatBackground(fyne.NewSize(0, 0))
-	body := container.NewMax(bg, cv.scroll)
+	cv.scroll = container.NewVScroll(container.New(&padLayout{h: 0, v: 6}, cv.messages))
+	body := container.NewMax(chatBackground(fyne.NewSize(0, 0)), cv.scroll)
 
+	// Composer (ChatInput.tsx): a rounded pill (emoji left, attach right) with
+	// the send button as a separate green circle outside it.
 	cv.entry = widget.NewMultiLineEntry()
 	cv.entry.SetPlaceHolder("Type a message")
 	cv.entry.Wrapping = fyne.TextWrapWord
+	cv.entry.SetMinRowsVisible(1)
 	cv.entry.OnSubmitted = func(string) { cv.sendMessage() }
 
-	emoji := widget.NewButton("😊", func() {})
-	emoji.Importance = widget.LowImportance
-	plus := widget.NewButton("+", func() {})
-	plus.Importance = widget.LowImportance
-	send := widget.NewButton("➤", func() { cv.sendMessage() })
-	send.Importance = widget.HighImportance
+	emojiBtn := newIconButton("cv-emoji", iconEmoji, 20, waMuted, func() {})
+	attachBtn := newIconButton("cv-attach", iconAttach, 20, waMuted, func() {})
 
-	inputBg := canvas.NewRectangle(waPanel)
-	entryBg := canvas.NewRectangle(waPanel2)
-	entryBg.CornerRadius = 8
-	entryWrap := container.NewMax(entryBg, container.NewPadded(cv.entry))
-	controls := container.NewBorder(nil, nil, container.NewHBox(emoji, plus), send, entryWrap)
-	footer := container.NewMax(inputBg, container.NewPadded(controls))
+	pillBg := canvas.NewRectangle(waPanel2)
+	pillBg.CornerRadius = 22
+	pill := container.NewMax(pillBg, container.New(&padLayout{h: 6, v: 4},
+		container.NewBorder(nil, nil,
+			container.NewHBox(container.NewPadded(emojiBtn)), nil,
+			container.NewBorder(nil, nil, nil, container.NewPadded(attachBtn), cv.entry))))
 
-	view := container.NewBorder(header, footer, nil, nil, body)
-	cv.fa.win.Canvas().SetOnTypedKey(func(ev *fyne.KeyEvent) {
-		if ev.Name == fyne.KeyReturn || ev.Name == fyne.KeyEnter {
-			// keep no-op; send button/submit handles
-		}
-	})
-	return view
+	send := newSendButton(func() { cv.sendMessage() })
+
+	row := container.NewBorder(nil, nil, nil, send, pill)
+	footerBg := canvas.NewRectangle(waPanel)
+	footer := container.NewMax(footerBg, container.New(&padLayout{h: 12, v: 6},
+		container.NewBorder(nil, spacer(1, 4), nil, nil, row)))
+
+	return container.NewBorder(header, footer, nil, nil, body)
 }
 
-func extractDecodedBody(msg store.DecodedMessage) string {
-	if msg.Content != nil {
-		if msg.Content.Conversation != "" {
-			return strings.TrimSpace(msg.Content.Conversation)
-		}
-		if msg.Content.ExtendedTextMessage != nil && strings.TrimSpace(msg.Content.ExtendedTextMessage.Text) != "" {
-			return strings.TrimSpace(msg.Content.ExtendedTextMessage.Text)
-		}
-		if msg.Content.ImageMessage != nil {
-			if c := strings.TrimSpace(msg.Content.ImageMessage.Caption); c != "" {
-				return "📷 " + c
-			}
-			return "📷 Photo"
-		}
-		if msg.Content.VideoMessage != nil {
-			if c := strings.TrimSpace(msg.Content.VideoMessage.Caption); c != "" {
-				return "🎥 " + c
-			}
-			return "🎥 Video"
-		}
-		if msg.Content.AudioMessage != nil {
-			return "🎵 Audio"
-		}
-		if msg.Content.DocumentMessage != nil {
-			return "📄 Document"
-		}
-		if msg.Content.StickerMessage != nil {
-			return "Sticker"
-		}
-	}
-	if msg.Poll != nil && msg.Poll.Name != "" {
-		return "📊 " + msg.Poll.Name
-	}
-	return ""
+// newSendButton is ChatInput.tsx's 44px green circle with the paper-plane.
+func newSendButton(onTap func()) fyne.CanvasObject {
+	circle := canvas.NewCircle(waAccent)
+	icon := iconImage("cv-send", iconSend, 20, waWhite)
+	btn := newTapArea(onTap)
+	inner := container.NewMax(circle, container.NewCenter(icon), btn)
+	return container.NewGridWrap(fyne.NewSize(44, 44), inner)
 }
 
-func parseMsgTime(ts string) time.Time {
-	ts = strings.TrimSpace(ts)
-	if ts == "" {
-		return time.Time{}
-	}
-	for _, layout := range []string{time.RFC3339Nano, time.RFC3339, "2006-01-02T15:04:05Z07:00"} {
-		if t, err := time.Parse(layout, ts); err == nil {
-			return t.Local()
-		}
-	}
-	// try unix seconds string
-	if n, err := fmt.Sscan(ts, new(int64)); err == nil && n == 1 {
-		// ignore; not worth pulling strconv in this helper
-	}
-	return time.Time{}
+type tapArea struct {
+	widget.BaseWidget
+	onTap func()
 }
 
-func formatMsgTimestamp(ts string) string {
-	t := parseMsgTime(ts)
-	if t.IsZero() {
-		if strings.Contains(ts, ":") {
-			return ts
-		}
-		return ""
-	}
-	return t.Format("15:04")
+func newTapArea(onTap func()) *tapArea {
+	t := &tapArea{onTap: onTap}
+	t.ExtendBaseWidget(t)
+	return t
 }
 
-var _ context.Context
+func (t *tapArea) CreateRenderer() fyne.WidgetRenderer {
+	return widget.NewSimpleRenderer(canvas.NewRectangle(color.Transparent))
+}
+func (t *tapArea) Tapped(*fyne.PointEvent) {
+	if t.onTap != nil {
+		t.onTap()
+	}
+}
+func (t *tapArea) Cursor() desktop.Cursor { return desktop.PointerCursor }
 
+func minF(a, b float32) float32 {
+	if a < b {
+		return a
+	}
+	return b
+}
 
 func chatNameFromJID(jid string) string {
 	j := jid
@@ -365,26 +636,6 @@ func chatNameFromJID(jid string) string {
 		return jid
 	}
 	return j
-}
-
-func messageTypeFallback(t string) string {
-	switch strings.ToLower(strings.TrimSpace(t)) {
-	case "image", "imagemessage":
-		return "📷 Photo"
-	case "video", "videomessage":
-		return "🎥 Video"
-	case "audio", "audiomessage", "ptt":
-		return "🎵 Audio"
-	case "document", "documentmessage":
-		return "📄 Document"
-	case "sticker", "stickermessage":
-		return "Sticker"
-	default:
-		if strings.TrimSpace(t) == "" {
-			return "Message"
-		}
-		return t
-	}
 }
 
 func messageDayLabel(t time.Time) string {

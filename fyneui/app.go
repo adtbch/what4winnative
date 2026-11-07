@@ -3,7 +3,9 @@ package fyneui
 import (
 	"context"
 	"image/color"
+	"os"
 	"strconv"
+	"time"
 
 	"fyne.io/fyne/v2"
 	fyneapp "fyne.io/fyne/v2/app"
@@ -38,6 +40,7 @@ func New(a *api.Api) *FyneApp {
 		state:  &AppState{api: a, Screen: "login"},
 	}
 	fa.win = fa.app.NewWindow("WhatsApp")
+	fa.app.Settings().SetTheme(newWATheme())
 	fa.win.Resize(fyne.NewSize(1360, 860))
 	fa.stack = container.NewMax(canvas.NewRectangle(waBg), widget.NewLabel("Loading..."))
 	fa.win.SetContent(fa.stack)
@@ -79,22 +82,19 @@ func (fa *FyneApp) OpenEmptyChat() {
 	})
 }
 
-func railItem(label string, active bool, badge int) fyne.CanvasObject {
+func railItem(path string, name string, active bool, badge int) fyne.CanvasObject {
 	fg := waRailIcon
 	if active {
 		fg = waText
 	}
-	t := canvas.NewText(label, fg)
-	t.TextSize = 18
-	t.Alignment = fyne.TextAlignCenter
-	t.TextStyle = fyne.TextStyle{Bold: active}
-	cell := container.NewMax(canvas.NewRectangle(color.Transparent), container.NewCenter(t))
+	icon := iconImage(name, path, 24, fg)
+	cell := container.NewMax(container.NewCenter(icon))
 	if active {
 		bg := canvas.NewRectangle(waRailSel)
 		bg.CornerRadius = 999
-		cell = container.NewMax(bg, container.NewCenter(t))
+		cell = container.NewMax(bg, container.NewCenter(icon))
 	}
-	wrap := container.NewGridWrap(fyne.NewSize(40, 40), container.NewCenter(cell))
+	wrap := container.NewGridWrap(fyne.NewSize(44, 44), cell)
 	if badge > 0 {
 		btxt := strconv.Itoa(badge)
 		if badge > 99 {
@@ -103,6 +103,7 @@ func railItem(label string, active bool, badge int) fyne.CanvasObject {
 		bt := canvas.NewText(btxt, waWhite)
 		bt.TextSize = 9
 		bt.TextStyle = fyne.TextStyle{Bold: true}
+		bt.Alignment = fyne.TextAlignCenter
 		bbg := canvas.NewCircle(waGreen)
 		badgeObj := container.NewGridWrap(fyne.NewSize(18, 18), container.NewMax(bbg, container.NewCenter(bt)))
 		wrap = container.NewMax(wrap, container.NewWithoutLayout(badgeObj))
@@ -112,36 +113,30 @@ func railItem(label string, active bool, badge int) fyne.CanvasObject {
 
 func railAvatar() fyne.CanvasObject {
 	bg := canvas.NewCircle(waHover)
-	txt := canvas.NewText("•", waMuted)
-	txt.Alignment = fyne.TextAlignCenter
-	txt.TextSize = 16
-	return container.NewGridWrap(fyne.NewSize(32, 32), container.NewMax(bg, container.NewCenter(txt)))
+	icon := iconImage("rail-avatar", iconPerson, 26, waRailIcon)
+	return container.NewGridWrap(fyne.NewSize(34, 34), container.NewMax(bg, container.NewCenter(icon)))
 }
 
 func (fa *FyneApp) rail() fyne.CanvasObject {
 	railBg := canvas.NewRectangle(waRail)
 	top := container.NewVBox(
 		spacer(1, 10),
-		container.NewCenter(railItem("≡", false, 0)),
-		spacer(1, 4),
-		container.NewCenter(railItem("💬", true, 0)),
-		spacer(1, 4),
-		container.NewCenter(railItem("⭘", false, 0)),
-		spacer(1, 4),
-		container.NewCenter(railItem("◎", false, 0)),
-		spacer(1, 4),
-		container.NewCenter(railItem("👥", false, 0)),
-		spacer(1, 4),
-		container.NewCenter(railItem("🤖", false, 0)), // bot/morty slot compatible
+		container.NewCenter(railItem(iconChats, "rail-chats", true, 0)),
+		spacer(1, 2),
+		container.NewCenter(railItem(iconStatus, "rail-status", false, 0)),
+		spacer(1, 2),
+		container.NewCenter(railItem(iconChannels, "rail-channels", false, 0)),
+		spacer(1, 2),
+		container.NewCenter(railItem(iconCommunities, "rail-communities", false, 0)),
 	)
 	bottom := container.NewVBox(
-		container.NewCenter(railItem("⚙", false, 0)),
+		container.NewCenter(railItem(iconSettings, "rail-settings", false, 0)),
 		spacer(1, 10),
 		container.NewCenter(railAvatar()),
 		spacer(1, 12),
 	)
-	rail := container.NewBorder(top, bottom, nil, nil, canvas.NewRectangle(color.Transparent))
-	return container.NewMax(railBg, container.NewGridWrap(fyne.NewSize(64, 0), rail))
+	inner := container.NewBorder(top, bottom, nil, nil, canvas.NewRectangle(color.Transparent))
+	return container.NewMax(railBg, inner)
 }
 
 func (fa *FyneApp) emptyPane() fyne.CanvasObject {
@@ -199,13 +194,12 @@ func (fa *FyneApp) buildShell() {
 		fa.chatPane = container.NewMax(fa.emptyPane())
 	}
 
-	rail := fa.rail()
-	leftBody := container.NewMax(canvas.NewRectangle(waPanel), fa.sidebar.Content())
-	left := container.NewHBox(rail, verticalDivider(), container.New(&sidebarWidthLayout{width: 420}, leftBody))
-	right := container.NewMax(canvas.NewRectangle(waBg), fa.chatPane)
+	leftBody := container.NewMax(canvas.NewRectangle(waSidebarBg), fa.sidebar.Content())
+	right := container.NewMax(canvas.NewRectangle(waChatBg), fa.chatPane)
 
-	split := container.New(&mainSplitLayout{leftRatio: 0.34, minLeft: 460, minRight: 420}, left, right)
-	fa.shell = container.NewMax(canvas.NewRectangle(waBg), split)
+	// React: ResizablePanel defaultSize 30%, minSize 320px, maxSize 600px.
+	split := container.New(&mainSplitLayout{leftRatio: 0.30, minLeft: 320, maxLeft: 600, minRight: 400}, leftBody, right)
+	fa.shell = container.NewMax(canvas.NewRectangle(waChatBg), split)
 }
 
 func (fa *FyneApp) SwitchToChats() {
@@ -215,6 +209,14 @@ func (fa *FyneApp) SwitchToChats() {
 		fa.stack.Objects = []fyne.CanvasObject{fa.shell}
 		fa.stack.Refresh()
 	})
+	// dev hook: auto-open a chat so the bubble rendering can be inspected
+	// without clicking (WHATS4LINUX_OPEN_JID=<jid or phone>).
+	if jid := os.Getenv("WHATS4LINUX_OPEN_JID"); jid != "" {
+		go func() {
+			time.Sleep(1500 * time.Millisecond)
+			fa.OpenChat(jid)
+		}()
+	}
 }
 
 func (fa *FyneApp) Run() {
@@ -257,10 +259,11 @@ func (l *sidebarWidthLayout) Layout(objects []fyne.CanvasObject, size fyne.Size)
 	}
 }
 
-// mainSplitLayout emulates WA desktop split (~30-35% left).
+// mainSplitLayout emulates the React resizable split (30% left, 320-600px).
 type mainSplitLayout struct {
 	leftRatio float32
 	minLeft   float32
+	maxLeft   float32
 	minRight  float32
 }
 
@@ -278,11 +281,14 @@ func (l *mainSplitLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 	}
 	r := l.leftRatio
 	if r <= 0 || r >= 1 {
-		r = 0.34
+		r = 0.30
 	}
 	leftW := size.Width * r
 	if leftW < l.minLeft {
 		leftW = l.minLeft
+	}
+	if l.maxLeft > 0 && leftW > l.maxLeft {
+		leftW = l.maxLeft
 	}
 	if leftW > size.Width-l.minRight {
 		leftW = size.Width - l.minRight
