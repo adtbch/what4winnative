@@ -12,13 +12,15 @@ import (
 )
 
 type FyneApp struct {
-	app    fyne.App
-	win    fyne.Window
-	api    *api.Api
-	ctx    context.Context
-	cancel context.CancelFunc
-	state  *AppState
-	stack  *fyne.Container
+	app     fyne.App
+	win     fyne.Window
+	api     *api.Api
+	ctx     context.Context
+	cancel  context.CancelFunc
+	state   *AppState
+	stack   *fyne.Container
+	sidebar *Sidebar
+	chatBox *fyne.Container
 }
 
 func New(a *api.Api) *FyneApp {
@@ -46,10 +48,30 @@ func (fa *FyneApp) ShowLogin() {
 	})
 }
 
+func (fa *FyneApp) OpenChat(jid string) {
+	fa.state.SelectedChatID = jid
+	fyne.Do(func() {
+		if fa.chatBox == nil {
+			return
+		}
+		fa.chatBox.Objects = []fyne.CanvasObject{container.NewCenter(widget.NewLabel("Chat: " + jid + " (WIP)"))}
+		fa.chatBox.Refresh()
+	})
+}
+
 func (fa *FyneApp) SwitchToChats() {
 	fa.state.Screen = "chats"
+	if fa.sidebar == nil {
+		fa.sidebar = NewSidebar(fa)
+	}
+	if fa.chatBox == nil {
+		fa.chatBox = container.NewStack(container.NewCenter(widget.NewLabel("Select a chat")))
+	}
 	fyne.Do(func() {
-		fa.stack.Objects = []fyne.CanvasObject{widget.NewLabel("Chats (WIP)")}
+		left := container.NewGridWrap(fyne.NewSize(300, 0), fa.sidebar.Content())
+		split := container.NewHSplit(left, fa.chatBox)
+		split.Offset = 0.3
+		fa.stack.Objects = []fyne.CanvasObject{split}
 		fa.stack.Refresh()
 	})
 }
