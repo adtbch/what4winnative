@@ -37,7 +37,26 @@ func New(a *api.Api) *FyneApp {
 	return fa
 }
 
+func (fa *FyneApp) ShowLogin() {
+	fa.state.Screen = "login"
+	login := NewLoginScreen(fa)
+	fyne.Do(func() {
+		fa.stack.Objects = []fyne.CanvasObject{login.Content()}
+		fa.stack.Refresh()
+	})
+}
+
+func (fa *FyneApp) SwitchToChats() {
+	fa.state.Screen = "chats"
+	fyne.Do(func() {
+		fa.stack.Objects = []fyne.CanvasObject{widget.NewLabel("Chats (WIP)")}
+		fa.stack.Refresh()
+	})
+}
+
 func (fa *FyneApp) Run() {
 	defer fa.cancel()
+	go func() { fa.api.Startup(fa.ctx) }()
+	fa.ShowLogin()
 	fa.win.ShowAndRun()
 }
