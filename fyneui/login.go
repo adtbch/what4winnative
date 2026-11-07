@@ -26,7 +26,14 @@ func NewLoginScreen(fa *FyneApp) *LoginScreen {
 	ls.qrImg.SetMinSize(fyne.NewSize(280, 280))
 
 	go ls.listenEvents()
-	go func() { _ = fa.api.Login() }()
+	go func() {
+		// if already logged in (session exists), skip QR
+		if fa.api.IsLoggedIn() {
+			fyne.Do(func() { fa.SwitchToChats() })
+			return
+		}
+		_ = fa.api.Login()
+	}()
 	return ls
 }
 

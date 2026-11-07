@@ -61,6 +61,15 @@ type Api struct {
 	appStateResync      atomic.Bool
 }
 
+
+
+func (a *Api) IsLoggedIn() bool {
+	a.waitForStartup()
+	a.lifecycleMu.Lock()
+	c := a.waClient
+	a.lifecycleMu.Unlock()
+	return c != nil && c.Store != nil && c.Store.ID != nil
+}
 func (a *Api) emitEvent(name string, data any) {
 	if a.ctx != nil {
 		if v, _ := a.ctx.Value("ui_mode").(string); v != "fyne" {
