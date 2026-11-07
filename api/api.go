@@ -117,7 +117,7 @@ func (a *Api) repairGroupNames() {
 
 	if repaired > 0 {
 		log.Printf("repairGroupNames: repaired %d group name(s)", repaired)
-		runtime.EventsEmit(a.ctx,  "wa:chat_list_refresh")
+		a.emitEvent("wa:chat_list_refresh")
 	}
 }
 
@@ -144,7 +144,7 @@ func (a *Api) resyncAppState() {
 		}
 		log.Println("App state fully synced:", name)
 	}
-	runtime.EventsEmit(a.ctx,  "wa:chat_list_refresh")
+	a.emitEvent("wa:chat_list_refresh")
 }
 
 // htmlTagRE strips HTML tags from message previews so desktop notifications
@@ -435,10 +435,10 @@ func (a *Api) Login() error {
 						break waitQR
 					}
 					if evt.Event == "code" {
-						runtime.EventsEmit(a.ctx,  "wa:qr", evt.Code)
+						a.emitEvent("wa:qr", evt.Code)
 						continue
 					}
-					runtime.EventsEmit(a.ctx,  "wa:status", evt.Event)
+					a.emitEvent("wa:status", evt.Event)
 					if evt.Event == "timeout" || evt.Event == "err-unexpected-state" {
 						timedOut = true
 					} else if evt.Event == "success" {
@@ -460,7 +460,7 @@ func (a *Api) Login() error {
 				return loginCtx.Err()
 			case <-time.After(500 * time.Millisecond):
 			}
-			runtime.EventsEmit(a.ctx,  "wa:status", "refreshing")
+			a.emitEvent("wa:status", "refreshing")
 			qrChan, err = client.GetQRChannel(loginCtx)
 			if err != nil {
 				return fmt.Errorf("refresh QR login channel: %w", err)
@@ -478,7 +478,7 @@ func (a *Api) Login() error {
 		if a.isShuttingDown() {
 			return context.Canceled
 		}
-		runtime.EventsEmit(a.ctx,  "wa:status", "logged_in")
+		a.emitEvent("wa:status", "logged_in")
 	}
 	return nil
 }
@@ -585,7 +585,7 @@ func (a *Api) mainEventHandler(evt any) {
 		if messageID != "" {
 			updatedMsg, err := a.messageStore.GetDecodedMessage(v.Info.Chat.String(), messageID)
 			if err == nil {
-				runtime.EventsEmit(a.ctx,  "wa:new_message", map[string]any{
+				a.emitEvent("wa:new_message", map[string]any{
 					"chatId":      v.Info.Chat.String(),
 					"message":     updatedMsg,
 					"messageText": parsedHTML, // Text field contains HTML now, but better than nothing or we can use updatedMsg.Text
@@ -629,7 +629,7 @@ func (a *Api) mainEventHandler(evt any) {
 					senderName = "You"
 				}
 
-				runtime.EventsEmit(a.ctx,  "wa:new_message", map[string]any{
+				a.emitEvent("wa:new_message", map[string]any{
 					"chatId":      v.Info.Chat.String(),
 					"message":     nil,
 					"messageText": targetText,
@@ -643,7 +643,7 @@ func (a *Api) mainEventHandler(evt any) {
 	case *events.Picture:
 		a.startBackground(func() { _, _ = a.GetCachedAvatar(v.JID.String(), true) })
 
-		runtime.EventsEmit(a.ctx,  "wa:picture_update", v.JID.String())
+		a.emitEvent("wa:picture_update", v.JID.String())
 
 	case *events.Mute:
 		// Emitted for mutes set on other devices (e.g. the phone), including
@@ -677,7 +677,7 @@ func (a *Api) mainEventHandler(evt any) {
 			log.Println("Messages DB migration failed:", err)
 		} else {
 			log.Println("Messages DB migration completed successfully")
-			runtime.EventsEmit(a.ctx,  "wa:chat_list_refresh")
+			a.emitEvent("wa:chat_list_refresh")
 		}
 	case *events.HistorySync:
 		// whatsmeow delivers past conversations here after linking. Reuse the
@@ -691,7 +691,7 @@ func (a *Api) mainEventHandler(evt any) {
 		if err := a.messageStore.SetChatArchived(chatID, v.Action.GetArchived(), v.Timestamp.Unix()); err != nil {
 			log.Println("Failed to store chat archive state:", err)
 		}
-		runtime.EventsEmit(a.ctx,  "wa:chat_list_refresh")
+		a.emitEvent("wa:chat_list_refresh")
 	case *events.Pin:
 		// Chat pinned/unpinned from another device (or during app state sync).
 		// Same LID->PN canonicalization as Archive.
@@ -699,18 +699,18 @@ func (a *Api) mainEventHandler(evt any) {
 		if err := a.messageStore.SetChatPinned(chatID, v.Action.GetPinned(), v.Timestamp.Unix()); err != nil {
 			log.Println("Failed to store chat pin:", err)
 		}
-		runtime.EventsEmit(a.ctx,  "wa:chat_list_refresh")
+		a.emitEvent("wa:chat_list_refresh")
 	case *events.MarkChatAsRead:
 		chatID := canonicalUserJID(a.ctx, a.waClient, v.JID).String()
 		if v.Action.GetRead() {
-			runtime.EventsEmit(a.ctx,  "wa:chat_marked_read", map[string]any{"chatId": chatID})
+			a.emitEvent("wa:chat_marked_read", map[string]any{"chatId": chatID})
 		} else {
-			runtime.EventsEmit(a.ctx,  "wa:chat_marked_unread", map[string]any{"chatId": chatID})
+			a.emitEvent("wa:chat_marked_unread", map[string]any{"chatId": chatID})
 		}
 	case *events.Disconnected:
 		a.waClient.SendPresence(a.ctx, types.PresenceUnavailable)
 	case *events.Receipt:
-		runtime.EventsEmit(a.ctx,  "wa:message_receipt", map[string]any{
+		a.emitEvent("wa:message_receipt", map[string]any{
 			"chatId": v.Chat.String(),
 			"status": v.Type.GoString(),
 		})
@@ -759,5 +759,5 @@ func (a *Api) processHistorySync(v *events.HistorySync) {
 		}
 	}
 	log.Printf("History sync: stored %d messages from %d conversations", stored, len(conversations))
-	runtime.EventsEmit(a.ctx,  "wa:chat_list_refresh")
+	a.emitEvent("wa:chat_list_refresh")
 }

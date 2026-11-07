@@ -121,7 +121,7 @@ func (a *Api) emitCall(info voip.Info) {
 	if a.ctx == nil {
 		return
 	}
-	runtime.EventsEmit(a.ctx, "wa:call", a.callInfoFrom(info))
+	a.emitEvent("wa:call", a.callInfoFrom(info))
 }
 
 // emitVideoFrame forwards one inbound H.264 access unit to the frontend decoder.
@@ -129,7 +129,7 @@ func (a *Api) emitVideoFrame(accessUnit []byte) {
 	if a.ctx == nil {
 		return
 	}
-	runtime.EventsEmit(a.ctx, "wa:call_video_frame", base64.StdEncoding.EncodeToString(accessUnit))
+	a.emitEvent("wa:call_video_frame", base64.StdEncoding.EncodeToString(accessUnit))
 }
 
 // emitVideoKeyframeRequest tells the frontend encoder to force an IDR frame.
@@ -137,7 +137,7 @@ func (a *Api) emitVideoKeyframeRequest() {
 	if a.ctx == nil {
 		return
 	}
-	runtime.EventsEmit(a.ctx, "wa:call_video_keyframe")
+	a.emitEvent("wa:call_video_keyframe")
 }
 
 func (a *Api) PlaceCall(target string) error {

@@ -54,7 +54,7 @@ func (a *Api) SetNotificationsEnabled(enabled bool) error {
 		return err
 	}
 	if a.ctx != nil {
-		runtime.EventsEmit(a.ctx, "wa:notifications_toggled", enabled)
+		a.emitEvent("wa:notifications_toggled", enabled)
 	}
 	// Best-effort push; the tray may not be connected.
 	_ = a.us.SendCommand(notificationsStateMessage(enabled))
@@ -80,7 +80,7 @@ func (a *Api) ToggleChatMute(chatJID string, muted bool) error {
 	if err := a.messageStore.SetChatMuted(jid.String(), mutedUntil); err != nil {
 		return err
 	}
-	runtime.EventsEmit(a.ctx, "wa:chat_mute_update", map[string]any{
+	a.emitEvent("wa:chat_mute_update", map[string]any{
 		"chatId": jid.String(),
 		"muted":  muted,
 	})
@@ -132,7 +132,7 @@ func (a *Api) handleMuteEvent(jid types.JID, muted bool, muteEnd int64) {
 		log.Println("Failed to persist chat mute state:", err)
 		return
 	}
-	runtime.EventsEmit(a.ctx, "wa:chat_mute_update", map[string]any{
+	a.emitEvent("wa:chat_mute_update", map[string]any{
 		"chatId": chatID,
 		"muted":  mutedUntil == -1 || mutedUntil > time.Now().Unix(),
 	})
