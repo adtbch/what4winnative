@@ -490,8 +490,58 @@ func (ms *MessageStore) MigrateLIDToPN(ctx context.Context, sd store.LIDStore) e
 				continue
 			}
 		}
+
+		// Pin/archive rows come from app state, which keys chats by LID, while
+		// messages.db keys them by PN. Without this the sidebar never matches
+		// the two and pins/archives set on the phone are invisible.
+		migrateFlagTable(tx, ctx, sd, query.SelectPinnedChats, query.UpsertPinnedChat, query.DeletePinnedChat, "pin")
+		migrateFlagTable(tx, ctx, sd, query.SelectArchivedChats, query.UpsertArchivedChat, query.DeleteArchivedChat, "archive")
+
 		return nil
 	})
+}
+
+// migrateFlagTable rewrites chat_jid values in a (chat_jid, timestamp) table
+// from LID to PN when a mapping exists.
+func migrateFlagTable(tx *sql.Tx, ctx context.Context, sd store.LIDStore, selectQ, upsertQ, deleteQ, label string) {
+	rows, err := tx.Query(selectQ)
+	if err != nil {
+		log.Printf("LID migration: failed to read %s rows: %v\n", label, err)
+		return
+	}
+	type row struct {
+		jid string
+		ts  int64
+	}
+	var pending []row
+	for rows.Next() {
+		var r row
+		if rows.Scan(&r.jid, &r.ts) == nil {
+			pending = append(pending, r)
+		}
+	}
+	rows.Close()
+
+	for _, r := range pending {
+		jid, err := types.ParseJID(r.jid)
+		if err != nil || jid.ActualAgent() != types.LIDDomain {
+			continue
+		}
+		pn, err := sd.GetPNForLID(ctx, jid)
+		if err != nil || pn.User == "" {
+			continue
+		}
+		pn = pn.ToNonAD()
+		if _, err := tx.Exec(deleteQ, r.jid); err != nil {
+			log.Printf("LID migration: failed to delete old %s row %s: %v\n", label, r.jid, err)
+			continue
+		}
+		if _, err := tx.Exec(upsertQ, pn.String(), r.ts); err != nil {
+			log.Printf("LID migration: failed to insert %s row %s: %v\n", label, pn.String(), err)
+			continue
+		}
+		log.Printf("Migrated %s chat from LID %s to PN %s\n", label, r.jid, pn.String())
+	}
 }
 
 // migrateChatlist migrates chatlist entries from LID to PN when a new PN chat is detected
@@ -623,7 +673,16 @@ func (ms *MessageStore) ProcessMessageEvent(ctx context.Context, sd store.LIDSto
 		Sender:      sender,
 	}
 
-	ms.chatListMap.Set(chat, chatMsg)
+	// Only let a message become the chat-list entry if it is at least as new as
+	// the cached one. History sync replays old messages conversation by
+	// conversation, so an unconditional Set left the cache holding the OLDEST
+	// message of the last batch and the sidebar showed stale chats (until a
+	// restart rebuilt the cache from the DB).
+	if cached, ok := ms.chatListMap.Get(chat); ok && cached.MessageTime > chatMsg.MessageTime {
+		// keep the newer cached entry
+	} else {
+		ms.chatListMap.Set(chat, chatMsg)
+	}
 
 	err := ms.InsertMessage(&msg.Info, msg.Message, parsedHTML)
 	if err != nil {

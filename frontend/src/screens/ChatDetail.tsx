@@ -368,6 +368,9 @@ export function ChatDetail({ chatId, chatName, chatAvatar, onBack }: ChatDetailP
         MarkRead(chatId, messageIds, "read-msg").catch(err => {
           console.error("Failed to mark messages as read:", err)
         })
+        try {
+          useChatStore.getState().clearUnreadCount(chatId)
+        } catch {}
       }
     }
   }, [isAtBottom, chatId, chatMessages])

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 
 	"github.com/lugvitc/whats4linux/internal/voip"
@@ -20,6 +21,12 @@ type CallInfo struct {
 	State     string `json:"state"`
 	InputID   string `json:"input_id"`
 	OutputID  string `json:"output_id"`
+
+	Video            bool `json:"video"`
+	VideoSending     bool `json:"video_sending"`
+	VideoReceiving   bool `json:"video_receiving"`
+	VideoMuted       bool `json:"video_muted"`
+	VideoOrientation int  `json:"video_orientation"`
 }
 
 func (a *Api) callInfoFrom(info voip.Info) CallInfo {
@@ -28,14 +35,19 @@ func (a *Api) callInfoFrom(info voip.Info) CallInfo {
 		chatJID = info.ChatJID
 	}
 	return CallInfo{
-		ID:        info.ID,
-		Peer:      info.Peer,
-		ChatJID:   chatJID,
-		Name:      name,
-		Direction: info.Direction,
-		State:     info.State,
-		InputID:   info.InputID,
-		OutputID:  info.OutputID,
+		ID:               info.ID,
+		Peer:             info.Peer,
+		ChatJID:          chatJID,
+		Name:             name,
+		Direction:        info.Direction,
+		State:            info.State,
+		InputID:          info.InputID,
+		OutputID:         info.OutputID,
+		Video:            info.Video,
+		VideoSending:     info.VideoSending,
+		VideoReceiving:   info.VideoReceiving,
+		VideoMuted:       info.VideoMuted,
+		VideoOrientation: info.VideoOrientation,
 	}
 }
 
@@ -112,11 +124,87 @@ func (a *Api) emitCall(info voip.Info) {
 	runtime.EventsEmit(a.ctx, "wa:call", a.callInfoFrom(info))
 }
 
+// emitVideoFrame forwards one inbound H.264 access unit to the frontend decoder.
+func (a *Api) emitVideoFrame(accessUnit []byte) {
+	if a.ctx == nil {
+		return
+	}
+	runtime.EventsEmit(a.ctx, "wa:call_video_frame", base64.StdEncoding.EncodeToString(accessUnit))
+}
+
+// emitVideoKeyframeRequest tells the frontend encoder to force an IDR frame.
+func (a *Api) emitVideoKeyframeRequest() {
+	if a.ctx == nil {
+		return
+	}
+	runtime.EventsEmit(a.ctx, "wa:call_video_keyframe")
+}
+
 func (a *Api) PlaceCall(target string) error {
 	if a.voip == nil {
 		return errVoIPNotReady
 	}
 	return a.voip.Place(a.ctx, target)
+}
+
+// PlaceVideoCall starts an outbound WhatsApp video call.
+func (a *Api) PlaceVideoCall(target string) error {
+	if a.voip == nil {
+		return errVoIPNotReady
+	}
+	return a.voip.PlaceVideo(a.ctx, target)
+}
+
+// StartCallVideo asks the peer for an audio-to-video upgrade on the current call.
+func (a *Api) StartCallVideo() error {
+	if a.voip == nil {
+		return errVoIPNotReady
+	}
+	return a.voip.StartVideo()
+}
+
+// AcceptCallVideo accepts a pending peer video upgrade.
+func (a *Api) AcceptCallVideo() error {
+	if a.voip == nil {
+		return errVoIPNotReady
+	}
+	return a.voip.AcceptVideo()
+}
+
+// StopCallVideo stops our outbound camera, keeping audio and peer video.
+func (a *Api) StopCallVideo() error {
+	if a.voip == nil {
+		return errVoIPNotReady
+	}
+	return a.voip.StopVideo()
+}
+
+// SetCallVideoEnabled mutes or unmutes our outbound camera.
+func (a *Api) SetCallVideoEnabled(enabled bool) error {
+	if a.voip == nil {
+		return errVoIPNotReady
+	}
+	return a.voip.SetVideoEnabled(enabled)
+}
+
+// SendCallVideoFrame pushes one base64-encoded Annex-B H.264 access unit.
+func (a *Api) SendCallVideoFrame(b64 string) error {
+	if a.voip == nil {
+		return errVoIPNotReady
+	}
+	raw, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		return err
+	}
+	return a.voip.SendVideoFrame(raw)
+}
+
+// SetCallVideoOrientation announces local camera rotation in quarter turns.
+func (a *Api) SetCallVideoOrientation(orientation int) error {
+	if a.voip == nil {
+		return errVoIPNotReady
+	}
+	return a.voip.SetVideoOrientation(orientation)
 }
 
 func (a *Api) AnswerCall() error {

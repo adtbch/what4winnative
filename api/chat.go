@@ -70,6 +70,21 @@ func (a *Api) GetChatList() ([]ChatElement, error) {
 	cmList := a.messageStore.GetChatList()
 	pinnedChats := a.messageStore.GetPinnedChats()
 	archivedChats := a.messageStore.GetArchivedChats()
+	// App-state rows can still carry a LID while the message rows carry the PN
+	// (or vice versa) when no LID mapping exists yet. Match on the bare user
+	// part so a pin/archive is not lost just because the server differs.
+	pinnedByUser := make(map[string]int64, len(pinnedChats))
+	for jid, ts := range pinnedChats {
+		if p, err := types.ParseJID(jid); err == nil {
+			pinnedByUser[p.User] = ts
+		}
+	}
+	archivedByUser := make(map[string]bool, len(archivedChats))
+	for jid := range archivedChats {
+		if p, err := types.ParseJID(jid); err == nil {
+			archivedByUser[p.User] = true
+		}
+	}
 	ce := make([]ChatElement, len(cmList))
 	for i, cm := range cmList {
 		var fc Contact
@@ -122,8 +137,8 @@ func (a *Api) GetChatList() ([]ChatElement, error) {
 				}
 			}
 		}
-		pinnedAt, pinned := pinnedChats[cm.JID.String()]
-		_, archived := archivedChats[cm.JID.String()]
+		pinnedAt, pinned := pinnedByUser[cm.JID.User]
+		archived := archivedByUser[cm.JID.User]
 		ce[i] = ChatElement{
 			LatestMessage:     cm.MessageText,
 			LatestTS:          cm.MessageTime,

@@ -13,9 +13,9 @@ import (
 	"github.com/lugvitc/whats4linux/internal/markdown"
 	"github.com/lugvitc/whats4linux/internal/store"
 	mtypes "github.com/lugvitc/whats4linux/internal/types"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"go.mau.fi/util/random"
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/appstate"
 	"go.mau.fi/whatsmeow/proto/waCommon"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
@@ -552,7 +552,7 @@ func (a *Api) SendMessage(chatJID string, content MessageContent) (string, error
 		}
 	}
 
-	runtime.EventsEmit(a.ctx, "wa:new_message", map[string]any{
+	a.emitEvent( "wa:new_message", map[string]any{
 		"chatId":       parsedJID.String(),
 		"message":      msg,
 		"clientTempId": content.ClientTempID,
@@ -583,6 +583,19 @@ func (a *Api) MarkRead(chatJID string, messageIDs []string, Type string) error {
 				log.Printf("MarkRead error for message %s: %v", msgID, err)
 			}
 		}
+		// Also update app state so other devices (including phone) see read status
+		if len(messageIDs) > 0 {
+			if msg, err := a.messageStore.GetMessageWithMedia(chatJID, messageIDs[len(messageIDs)-1]); err == nil {
+				if err := a.waClient.SendAppState(a.ctx, appstate.BuildMarkChatAsRead(parsedChatJID, true, msg.Info.Timestamp, &waCommon.MessageKey{ID: proto.String(msg.Info.ID), FromMe: proto.Bool(msg.Info.IsFromMe), RemoteJID: proto.String(parsedChatJID.String())})); err != nil {
+					log.Println("MarkRead: app state sync failed:", err)
+				}
+			} else {
+				if err := a.waClient.SendAppState(a.ctx, appstate.BuildMarkChatAsRead(parsedChatJID, true, time.Now(), nil)); err != nil {
+					log.Println("MarkRead: app state sync failed:", err)
+				}
+			}
+		}
+		a.emitEvent( "wa:chat_marked_read", map[string]any{"chatId": parsedChatJID.String()})
 	}
 	return nil
 }
@@ -638,7 +651,7 @@ func (a *Api) SetMessagePinned(chatJID, senderJID, messageID string, fromMe, pin
 	if err := a.messageStore.ApplyMessagePin(chatJID, sender, messageID, pin, PinExpirySeconds); err != nil {
 		log.Println("SetMessagePinned: failed to persist:", err)
 	}
-	runtime.EventsEmit(a.ctx, "wa:pinned_update", map[string]any{"chatId": chatJID})
+	a.emitEvent( "wa:pinned_update", map[string]any{"chatId": chatJID})
 	return nil
 }
 
@@ -669,7 +682,7 @@ func (a *Api) sendAndStoreLocal(chat types.JID, msgContent *waE2E.Message, previ
 			msg = decodedMsg
 		}
 	}
-	runtime.EventsEmit(a.ctx, "wa:new_message", map[string]any{
+	a.emitEvent( "wa:new_message", map[string]any{
 		"chatId":      chat.String(),
 		"message":     msg,
 		"messageText": preview,
@@ -732,7 +745,7 @@ func (a *Api) emitMessageUpdate(chatJID, messageID string) {
 		log.Println("Failed to get decoded message after message update:", err)
 		return
 	}
-	runtime.EventsEmit(a.ctx, "wa:new_message", map[string]any{
+	a.emitEvent( "wa:new_message", map[string]any{
 		"chatId":  chatJID,
 		"message": updated,
 	})

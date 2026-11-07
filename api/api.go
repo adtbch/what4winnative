@@ -11,10 +11,12 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/gen2brain/beeep"
 
 	"github.com/lugvitc/whats4linux/internal/cache"
+	"github.com/lugvitc/whats4linux/internal/eventbus"
 	"github.com/lugvitc/whats4linux/internal/misc"
 	"github.com/lugvitc/whats4linux/internal/settings"
 	"github.com/lugvitc/whats4linux/internal/store"
@@ -45,6 +47,8 @@ type Api struct {
 	eventHandlerID      uint32
 	eventHandlerSet     bool
 	startupErr          error
+	startupReady        chan struct{}
+	startupOnce         sync.Once
 	loginCancel         context.CancelFunc
 	lifecycleMu         sync.Mutex
 	loginMu             sync.Mutex
@@ -55,6 +59,13 @@ type Api struct {
 	windowFocused       atomic.Bool
 	groupRepairInFlight atomic.Bool
 	appStateResync      atomic.Bool
+}
+
+func (a *Api) emitEvent(name string, data any) {
+	if a.ctx != nil {
+		runtime.EventsEmit(a.ctx,  name, data)
+	}
+	eventbus.Default.Publish(name, data)
 }
 
 // repairGroupNames heals whats4linux_groups rows that are missing or were
@@ -103,7 +114,7 @@ func (a *Api) repairGroupNames() {
 
 	if repaired > 0 {
 		log.Printf("repairGroupNames: repaired %d group name(s)", repaired)
-		runtime.EventsEmit(a.ctx, "wa:chat_list_refresh")
+		runtime.EventsEmit(a.ctx,  "wa:chat_list_refresh")
 	}
 }
 
@@ -130,7 +141,7 @@ func (a *Api) resyncAppState() {
 		}
 		log.Println("App state fully synced:", name)
 	}
-	runtime.EventsEmit(a.ctx, "wa:chat_list_refresh")
+	runtime.EventsEmit(a.ctx,  "wa:chat_list_refresh")
 }
 
 // htmlTagRE strips HTML tags from message previews so desktop notifications
@@ -161,7 +172,17 @@ func (a *Api) notifyIncoming(v *events.Message, parsedHTML string) {
 
 // NewApi creates a new Api application struct
 func New() *Api {
-	return &Api{}
+	return &Api{startupReady: make(chan struct{})}
+}
+
+// waitForStartup blocks until Startup has finished wiring the WhatsApp client
+// (or failed). Wails runs OnStartup on its own goroutine, so the frontend's
+// first Login() call can otherwise race ahead of it and hit a nil client.
+func (a *Api) waitForStartup() {
+	if a.startupReady == nil {
+		return
+	}
+	<-a.startupReady
 }
 
 func (a *Api) startBackground(task func()) bool {
@@ -270,6 +291,14 @@ func (a *Api) failStartup(err error) {
 // startup is called when the app starts. The context is saved
 // so we can call the runtime methods
 func (a *Api) Startup(ctx context.Context) {
+	// Startup runs on a Wails goroutine while the frontend is already loading;
+	// signal completion (success or failure) so Login() can wait instead of
+	// racing into a nil client.
+	defer a.startupOnce.Do(func() {
+		if a.startupReady != nil {
+			close(a.startupReady)
+		}
+	})
 	// The window is focused when the app launches; the frontend keeps this in
 	// sync via SetWindowFocused so we don't notify while the user is looking.
 	a.windowFocused.Store(true)
@@ -317,6 +346,8 @@ func (a *Api) Startup(ctx context.Context) {
 	a.waClient = wa.NewClient(ctx, container)
 	a.voip = voip.Attach(a.waClient)
 	a.voip.SetOnChange(a.emitCall)
+	a.voip.SetOnVideoFrame(a.emitVideoFrame)
+	a.voip.SetOnVideoKeyframeRequest(a.emitVideoKeyframeRequest)
 	a.messageStore, err = store.NewMessageStore()
 	if err != nil {
 		a.failStartup(fmt.Errorf("open message store: %w", err))
@@ -331,6 +362,10 @@ func (a *Api) Startup(ctx context.Context) {
 }
 
 func (a *Api) Login() error {
+	// The frontend calls Login() as soon as it mounts, but Wails runs Startup
+	// on a separate goroutine — wait for the client to be wired up first.
+	a.waitForStartup()
+
 	a.loginMu.Lock()
 	defer a.loginMu.Unlock()
 
@@ -377,19 +412,56 @@ func (a *Api) Login() error {
 		if err != nil {
 			return err
 		}
+		// WhatsApp expires each QR code after ~60s and closes the channel once
+		// the batch is used up. Instead of leaving the user on a dead screen,
+		// loop: tear down the socket, request a fresh QR batch, reconnect.
 		for {
+			timedOut := false
+		waitQR:
+			for !timedOut {
+				select {
+				case <-loginCtx.Done():
+					return loginCtx.Err()
+				case evt, ok := <-qrChan:
+					if !ok {
+						// Channel closed by whatsmeow; treat like a timeout and
+						// ask for a fresh batch unless we already paired.
+						timedOut = client.Store.ID == nil
+						break waitQR
+					}
+					if evt.Event == "code" {
+						runtime.EventsEmit(a.ctx,  "wa:qr", evt.Code)
+						continue
+					}
+					runtime.EventsEmit(a.ctx,  "wa:status", evt.Event)
+					if evt.Event == "timeout" || evt.Event == "err-unexpected-state" {
+						timedOut = true
+					} else if evt.Event == "success" {
+						return nil
+					}
+				}
+			}
+			if client.Store.ID != nil {
+				return nil
+			}
+			if a.isShuttingDown() {
+				return context.Canceled
+			}
+			// Refresh the QR: whatsmeow already disconnected on timeout, but a
+			// stale connection can linger, so make the reset explicit.
+			client.Disconnect()
 			select {
 			case <-loginCtx.Done():
 				return loginCtx.Err()
-			case evt, ok := <-qrChan:
-				if !ok {
-					return nil
-				}
-				if evt.Event == "code" {
-					runtime.EventsEmit(a.ctx, "wa:qr", evt.Code)
-				} else {
-					runtime.EventsEmit(a.ctx, "wa:status", evt.Event)
-				}
+			case <-time.After(500 * time.Millisecond):
+			}
+			runtime.EventsEmit(a.ctx,  "wa:status", "refreshing")
+			qrChan, err = client.GetQRChannel(loginCtx)
+			if err != nil {
+				return fmt.Errorf("refresh QR login channel: %w", err)
+			}
+			if err = client.Connect(); err != nil {
+				return err
 			}
 		}
 	} else {
@@ -401,7 +473,7 @@ func (a *Api) Login() error {
 		if a.isShuttingDown() {
 			return context.Canceled
 		}
-		runtime.EventsEmit(a.ctx, "wa:status", "logged_in")
+		runtime.EventsEmit(a.ctx,  "wa:status", "logged_in")
 	}
 	return nil
 }
@@ -508,7 +580,7 @@ func (a *Api) mainEventHandler(evt any) {
 		if messageID != "" {
 			updatedMsg, err := a.messageStore.GetDecodedMessage(v.Info.Chat.String(), messageID)
 			if err == nil {
-				runtime.EventsEmit(a.ctx, "wa:new_message", map[string]any{
+				runtime.EventsEmit(a.ctx,  "wa:new_message", map[string]any{
 					"chatId":      v.Info.Chat.String(),
 					"message":     updatedMsg,
 					"messageText": parsedHTML, // Text field contains HTML now, but better than nothing or we can use updatedMsg.Text
@@ -552,7 +624,7 @@ func (a *Api) mainEventHandler(evt any) {
 					senderName = "You"
 				}
 
-				runtime.EventsEmit(a.ctx, "wa:new_message", map[string]any{
+				runtime.EventsEmit(a.ctx,  "wa:new_message", map[string]any{
 					"chatId":      v.Info.Chat.String(),
 					"message":     nil,
 					"messageText": targetText,
@@ -566,7 +638,7 @@ func (a *Api) mainEventHandler(evt any) {
 	case *events.Picture:
 		a.startBackground(func() { _, _ = a.GetCachedAvatar(v.JID.String(), true) })
 
-		runtime.EventsEmit(a.ctx, "wa:picture_update", v.JID.String())
+		runtime.EventsEmit(a.ctx,  "wa:picture_update", v.JID.String())
 
 	case *events.Mute:
 		// Emitted for mutes set on other devices (e.g. the phone), including
@@ -600,7 +672,7 @@ func (a *Api) mainEventHandler(evt any) {
 			log.Println("Messages DB migration failed:", err)
 		} else {
 			log.Println("Messages DB migration completed successfully")
-			runtime.EventsEmit(a.ctx, "wa:chat_list_refresh")
+			runtime.EventsEmit(a.ctx,  "wa:chat_list_refresh")
 		}
 	case *events.HistorySync:
 		// whatsmeow delivers past conversations here after linking. Reuse the
@@ -608,20 +680,32 @@ func (a *Api) mainEventHandler(evt any) {
 		a.processHistorySync(v)
 	case *events.Archive:
 		// Chat archived/unarchived from another device (or app state sync).
-		if err := a.messageStore.SetChatArchived(v.JID.String(), v.Action.GetArchived(), v.Timestamp.Unix()); err != nil {
+		// App state keys chats by LID while messages.db stores PN, so
+		// canonicalize first or the row never matches the chat list.
+		chatID := canonicalUserJID(a.ctx, a.waClient, v.JID).String()
+		if err := a.messageStore.SetChatArchived(chatID, v.Action.GetArchived(), v.Timestamp.Unix()); err != nil {
 			log.Println("Failed to store chat archive state:", err)
 		}
-		runtime.EventsEmit(a.ctx, "wa:chat_list_refresh")
+		runtime.EventsEmit(a.ctx,  "wa:chat_list_refresh")
 	case *events.Pin:
 		// Chat pinned/unpinned from another device (or during app state sync).
-		if err := a.messageStore.SetChatPinned(v.JID.String(), v.Action.GetPinned(), v.Timestamp.Unix()); err != nil {
+		// Same LID->PN canonicalization as Archive.
+		chatID := canonicalUserJID(a.ctx, a.waClient, v.JID).String()
+		if err := a.messageStore.SetChatPinned(chatID, v.Action.GetPinned(), v.Timestamp.Unix()); err != nil {
 			log.Println("Failed to store chat pin:", err)
 		}
-		runtime.EventsEmit(a.ctx, "wa:chat_list_refresh")
+		runtime.EventsEmit(a.ctx,  "wa:chat_list_refresh")
+	case *events.MarkChatAsRead:
+		chatID := canonicalUserJID(a.ctx, a.waClient, v.JID).String()
+		if v.Action.GetRead() {
+			runtime.EventsEmit(a.ctx,  "wa:chat_marked_read", map[string]any{"chatId": chatID})
+		} else {
+			runtime.EventsEmit(a.ctx,  "wa:chat_marked_unread", map[string]any{"chatId": chatID})
+		}
 	case *events.Disconnected:
 		a.waClient.SendPresence(a.ctx, types.PresenceUnavailable)
 	case *events.Receipt:
-		runtime.EventsEmit(a.ctx, "wa:message_receipt", map[string]any{
+		runtime.EventsEmit(a.ctx,  "wa:message_receipt", map[string]any{
 			"chatId": v.Chat.String(),
 			"status": v.Type.GoString(),
 		})
@@ -670,5 +754,5 @@ func (a *Api) processHistorySync(v *events.HistorySync) {
 		}
 	}
 	log.Printf("History sync: stored %d messages from %d conversations", stored, len(conversations))
-	runtime.EventsEmit(a.ctx, "wa:chat_list_refresh")
+	runtime.EventsEmit(a.ctx,  "wa:chat_list_refresh")
 }

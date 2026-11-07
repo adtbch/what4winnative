@@ -20,6 +20,12 @@ type Info struct {
 	State     string `json:"state"`
 	InputID   string `json:"input_id"`
 	OutputID  string `json:"output_id"`
+
+	Video            bool `json:"video"`
+	VideoSending     bool `json:"video_sending"`
+	VideoReceiving   bool `json:"video_receiving"`
+	VideoMuted       bool `json:"video_muted"`
+	VideoOrientation int  `json:"video_orientation"`
 }
 
 type History interface {
@@ -40,6 +46,11 @@ type Manager struct {
 	outputID  string
 	onChange  func(Info)
 	history   History
+
+	onVideoFrame     func([]byte)
+	onVideoKeyframe  func()
+	videoMuted       bool
+	videoOrientation int
 }
 
 func Attach(wa *whatsmeow.Client) *Manager {
@@ -241,6 +252,7 @@ func (m *Manager) current() (*meowcaller.Call, error) {
 }
 
 func (m *Manager) watch(call *meowcaller.Call) {
+	m.attachVideo(call)
 	call.OnStateChange(func(phase meowcaller.CallPhase) {
 		log.Printf("voip: call %s state %s", call.ID(), phaseName(phase))
 		m.notify()
@@ -300,13 +312,18 @@ func (m *Manager) notify() {
 
 func (m *Manager) infoLocked(call *meowcaller.Call) Info {
 	return Info{
-		ID:        call.ID(),
-		Peer:      call.Peer().String(),
-		ChatJID:   m.chatJID,
-		Direction: m.direction,
-		State:     phaseName(call.State()),
-		InputID:   m.inputID,
-		OutputID:  m.outputID,
+		ID:               call.ID(),
+		Peer:             call.Peer().String(),
+		ChatJID:          m.chatJID,
+		Direction:        m.direction,
+		State:            phaseName(call.State()),
+		InputID:          m.inputID,
+		OutputID:         m.outputID,
+		Video:            call.IsVideo(),
+		VideoSending:     call.IsSendingVideo(),
+		VideoReceiving:   call.IsReceivingVideo(),
+		VideoMuted:       m.videoMuted,
+		VideoOrientation: m.videoOrientation,
 	}
 }
 

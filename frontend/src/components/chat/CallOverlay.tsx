@@ -8,13 +8,18 @@ import {
   HangUp,
   ListAudioDevices,
   RejectCall,
+  SendCallVideoFrame,
   SetAudioInput,
   SetAudioOutput,
+  SetCallVideoEnabled,
+  StartCallVideo,
+  StopCallVideo,
 } from "../../../wailsjs/go/api/Api"
 import { EventsOn } from "../../../wailsjs/runtime/runtime"
 import { useChatStore } from "../../store"
 import { getEase } from "../../store/useEaseStore"
 import { displayCallName } from "../../lib/utils"
+import { CallVideoReceiver, CallVideoSender, videoCodecsSupported } from "../../lib/callVideo"
 
 export type CallInfo = {
   id?: string
@@ -25,6 +30,11 @@ export type CallInfo = {
   state?: string
   input_id?: string
   output_id?: string
+  video?: boolean
+  video_sending?: boolean
+  video_receiving?: boolean
+  video_muted?: boolean
+  video_orientation?: number
 }
 
 type AudioDevice = {
@@ -45,6 +55,11 @@ function normalizeCall(info: any): CallInfo {
     state: info.state ?? info.State ?? "idle",
     input_id: info.input_id ?? info.InputID,
     output_id: info.output_id ?? info.OutputID,
+    video: Boolean(info.video ?? info.Video),
+    video_sending: Boolean(info.video_sending ?? info.VideoSending),
+    video_receiving: Boolean(info.video_receiving ?? info.VideoReceiving),
+    video_muted: Boolean(info.video_muted ?? info.VideoMuted),
+    video_orientation: Number(info.video_orientation ?? info.VideoOrientation ?? 0),
   }
 }
 
@@ -64,6 +79,13 @@ type Props = {
 const CheckIcon = () => (
   <svg viewBox="0 0 24 24" width="14" height="14" className="fill-current">
     <path d="M9.55 18.2 3.65 12.3l1.4-1.4 4.5 4.5 9.4-9.4 1.4 1.4z" />
+  </svg>
+)
+
+const CameraIcon = ({ off }: { off?: boolean }) => (
+  <svg viewBox="0 0 24 24" width="18" height="18" className="fill-current">
+    <path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z" />
+    {off && <rect x="3" y="11" width="18" height="2" fill="currentColor" transform="rotate(45 12 12)" />}
   </svg>
 )
 
@@ -125,8 +147,13 @@ export function CallOverlay({ call }: Props) {
   const [devicesOpen, setDevicesOpen] = useState(false)
   const [inputs, setInputs] = useState<AudioDevice[]>([])
   const [outputs, setOutputs] = useState<AudioDevice[]>([])
+  const [videoError, setVideoError] = useState<string>("")
   const chat = useChatStore(s => s.getChat(call.chat_jid || "") || s.getChat(call.peer || ""))
   const devicesRef = useRef<HTMLDivElement>(null)
+  const remoteCanvasRef = useRef<HTMLCanvasElement>(null)
+  const selfPreviewRef = useRef<HTMLVideoElement>(null)
+  const senderRef = useRef<CallVideoSender | null>(null)
+  const receiverRef = useRef<CallVideoReceiver | null>(null)
 
   const easeOpenRef = useRef(getEase("CallOverlay", "open"))
   const easeCloseRef = useRef(getEase("CallOverlay", "close"))
@@ -180,6 +207,90 @@ export function CallOverlay({ call }: Props) {
     }
   }, [devicesOpen, call.input_id, call.output_id])
 
+  // Inbound H.264: Go decodes nothing, it forwards Annex-B access units as base64.
+  // The decoder is kept alive for the whole call so it survives the peer toggling
+  // their camera off and on again.
+  useEffect(() => {
+    if (!call.video || !remoteCanvasRef.current) return
+    if (!videoCodecsSupported()) {
+      setVideoError("WebCodecs not available — video disabled")
+      return
+    }
+    const receiver = new CallVideoReceiver({ canvas: remoteCanvasRef.current })
+    receiver.start()
+    receiverRef.current = receiver
+    const unsub = EventsOn("wa:call_video_frame", (b64: string) => {
+      receiver.push(b64)
+    })
+    return () => {
+      unsub()
+      receiver.stop()
+      receiverRef.current = null
+    }
+  }, [call.video])
+
+  useEffect(() => {
+    receiverRef.current?.setOrientation(call.video_orientation ?? 0)
+  }, [call.video_orientation])
+
+  // Outbound H.264: camera -> VideoEncoder -> base64 -> Go. Only runs once the
+  // peer has acknowledged the video transition, because SendVideo errors before
+  // the outbound media track exists.
+  useEffect(() => {
+    if (!call.video_sending || !selfPreviewRef.current) return
+    if (!videoCodecsSupported()) {
+      setVideoError("WebCodecs not available — video disabled")
+      return
+    }
+    let cancelled = false
+    const sender = new CallVideoSender({
+      send: async b64 => {
+        await SendCallVideoFrame(b64)
+      },
+    })
+    sender
+      .start(selfPreviewRef.current)
+      .then(() => {
+        if (cancelled) {
+          void sender.stop()
+          return
+        }
+        senderRef.current = sender
+      })
+      .catch(err => {
+        console.error("start video sender failed:", err)
+        setVideoError(String(err?.message || err))
+      })
+
+    const unsub = EventsOn("wa:call_video_keyframe", () => {
+      sender.requestKeyframe()
+    })
+
+    return () => {
+      cancelled = true
+      unsub()
+      void sender.stop()
+      senderRef.current = null
+    }
+  }, [call.video_sending])
+
+  const toggleCamera = () => {
+    if (!call.video_sending) {
+      StartCallVideo().catch(err => {
+        console.error("start video failed:", err)
+        setVideoError(String(err?.message || err))
+      })
+      return
+    }
+    SetCallVideoEnabled(Boolean(call.video_muted))
+      .then(() => {
+        if (!call.video_muted) void StopCallVideo()
+      })
+      .catch(err => console.error("toggle video failed:", err))
+  }
+
+  const videoActive = Boolean(call.video || call.video_sending || call.video_receiving)
+
   return (
     <div className="m-2 rounded-2xl border border-gray-200 bg-white p-3 shadow-lg dark:border-white/10 dark:bg-[#1a1a1a]">
       <div ref={devicesRef} className="overflow-hidden" style={{ height: 0, opacity: 0 }}>
@@ -199,6 +310,34 @@ export function CallOverlay({ call }: Props) {
         </div>
       </div>
 
+      {videoActive && (
+        <div className="relative mb-2 overflow-hidden rounded-xl bg-black">
+          <canvas
+            ref={remoteCanvasRef}
+            className="block h-auto max-h-[46vh] w-full object-contain"
+          />
+          {!call.video_receiving && (
+            <div className="absolute inset-0 flex items-center justify-center text-xs text-white/70">
+              Waiting for their camera…
+            </div>
+          )}
+          {call.video_sending && (
+            <video
+              ref={selfPreviewRef}
+              muted
+              playsInline
+              className="absolute bottom-2 right-2 h-24 w-16 rounded-lg border border-white/20 bg-black object-cover"
+              style={{ transform: `rotate(${(call.video_orientation ?? 0) * 90}deg)` }}
+            />
+          )}
+          {videoError && (
+            <div className="absolute inset-x-2 top-2 rounded bg-red-600/80 px-2 py-1 text-[11px] text-white">
+              {videoError}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center gap-3">
         <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-gray-300 dark:bg-gray-600">
           {avatar ? (
@@ -217,6 +356,21 @@ export function CallOverlay({ call }: Props) {
             {ringing ? "Incoming call" : call.state?.replace("_", " ")}
           </div>
         </div>
+        {!ringing && (
+          <button
+            type="button"
+            title={call.video_sending ? "Turn camera off" : "Turn camera on"}
+            onClick={toggleCamera}
+            className={clsx(
+              "rounded-full p-1.5 transition-colors",
+              call.video_sending
+                ? "bg-[#21c063] text-[#0a1014]"
+                : "text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/10",
+            )}
+          >
+            <CameraIcon off={!call.video_sending} />
+          </button>
+        )}
         <button
           type="button"
           title="Audio devices"

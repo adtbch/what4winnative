@@ -637,8 +637,17 @@ export function ChatListScreen({ onOpenSettings }: ChatListScreenProps) {
   const viewRef = useRef(view)
   viewRef.current = view
 
+  // A refresh requested while a fetch is already in flight must not be dropped:
+  // history sync fires dozens of wa:chat_list_refresh events back-to-back, and
+  // dropping them left the list stuck on the first (partial) snapshot until the
+  // app was restarted. Instead, queue exactly one follow-up fetch.
+  const pendingFetchRef = useRef(false)
+
   const fetchChats = useCallback(async () => {
-    if (isFetchingRef.current) return
+    if (isFetchingRef.current) {
+      pendingFetchRef.current = true
+      return
+    }
     // Communities / status load their own data.
     if (viewRef.current === "communities" || viewRef.current === "status") return
 
@@ -666,6 +675,11 @@ export function ChatListScreen({ onOpenSettings }: ChatListScreenProps) {
       setChats([])
     } finally {
       isFetchingRef.current = false
+      if (pendingFetchRef.current) {
+        pendingFetchRef.current = false
+        // Coalesce bursts of refresh events into one extra pass.
+        setTimeout(fetchChats, 200)
+      }
     }
   }, [setChats, transformChatElements])
 
@@ -757,12 +771,22 @@ export function ChatListScreen({ onOpenSettings }: ChatListScreenProps) {
       setTimeout(fetchChats, 500)
     })
 
+    // Keep unread badge in sync when chat is marked read/unread from another device
+    const unsubMarkedRead = EventsOn("wa:chat_marked_read", (data: { chatId: string }) => {
+      useChatStore.getState().clearUnreadCount(data.chatId)
+    })
+    const unsubMarkedUnread = EventsOn("wa:chat_marked_unread", (data: { chatId: string }) => {
+      setTimeout(fetchChats, 300)
+    })
+
     return () => {
       mountedRef.current = false
       clearTimeout(timeout)
       unsubNewMessage()
       unsubPictureUpdate()
       unsubRefresh()
+      unsubMarkedRead()
+      unsubMarkedUnread()
     }
   }, [fetchChats, getChat, loadSelfAvatar, updateChatLastMessage, updateSingleChat])
 
