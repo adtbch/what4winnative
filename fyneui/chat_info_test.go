@@ -7,7 +7,7 @@ import (
 )
 
 func TestChatInfoPanelGolden(t *testing.T) {
-	p := newChatInfoPanel(func() {})
+	p := newChatInfoPanel(func() {}, nil)
 	p.Set(chatInfoData{Name: "Alice", Subtitle: "+62 812-3456-7890", About: "Hey there! I am using WhatsApp."})
 	img := renderPNG(t, "chat_info", p, fyne.NewSize(chatInfoWidth, 520))
 	_, _, _, _, n := dominantCardBBox(img, hexNRGBA("#0c0c0c"), 20)
@@ -18,7 +18,7 @@ func TestChatInfoPanelGolden(t *testing.T) {
 }
 
 func TestChatInfoPanelGroupTitle(t *testing.T) {
-	p := newChatInfoPanel(func() {})
+	p := newChatInfoPanel(func() {}, nil)
 	p.Set(chatInfoData{Name: "Team", Subtitle: "Group · 3 participants", IsGroup: true})
 	if p.title.Text != "Group Info" {
 		t.Fatalf("group title=%q", p.title.Text)
@@ -31,7 +31,7 @@ func TestChatInfoPanelGroupTitle(t *testing.T) {
 
 func TestChatInfoPanelClose(t *testing.T) {
 	hit := false
-	p := newChatInfoPanel(func() { hit = true })
+	p := newChatInfoPanel(func() { hit = true }, nil)
 	if p.onClose == nil {
 		t.Fatal("nil close")
 	}

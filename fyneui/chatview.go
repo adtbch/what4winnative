@@ -664,8 +664,16 @@ func profileColorNRGBA(jid string) color.NRGBA {
 func (cv *ChatView) toggleInfo() {
 	cv.showInfo = !cv.showInfo
 	if cv.showInfo && cv.infoPanel == nil {
-		cv.infoPanel = newChatInfoPanel(func() { cv.toggleInfo() })
+		cv.infoPanel = newChatInfoPanel(func() { cv.toggleInfo() }, func(want bool) {
+			go func() {
+				if err := cv.fa.api.ToggleChatMute(cv.jid, want); err != nil {
+					log.Println("mute:", err)
+				}
+				cv.loadInfoData()
+			}()
+		})
 		cv.infoPanel.Set(chatInfoData{Name: cv.chatName, Subtitle: cv.jid, IsGroup: isGroupJID(cv.jid)})
+		go cv.loadInfoData()
 	}
 	cv.refreshLayout()
 }
@@ -686,5 +694,59 @@ func (cv *ChatView) refreshLayout() {
 		// keep 0-width placeholder when closed
 		cv.mainSplit.Objects = []fyne.CanvasObject{body, right}
 		cv.mainSplit.Refresh()
+	})
+}
+
+func (cv *ChatView) loadInfoData() {
+	if cv.infoPanel == nil {
+		return
+	}
+	jid := cv.jid
+	d := chatInfoData{Name: cv.chatName, Subtitle: jid, IsGroup: isGroupJID(jid)}
+	if m, err := cv.fa.api.IsChatMuted(jid); err == nil {
+		d.Muted = m
+	}
+	if d.IsGroup {
+		if gi, err := cv.fa.api.GetGroupInfo(jid); err == nil {
+			if strings.TrimSpace(gi.GroupName) != "" {
+				d.Name = gi.GroupName
+			}
+			if strings.TrimSpace(gi.GroupTopic) != "" {
+				d.About = gi.GroupTopic
+			}
+			d.MemberCount = gi.ParticipantCount
+			for _, p := range gi.Participants {
+				n := strings.TrimSpace(p.Contact.FullName)
+				if n == "" {
+					n = strings.TrimSpace(p.Contact.PushName)
+				}
+				if n == "" {
+					n = p.Contact.Phno
+				}
+				d.Participants = append(d.Participants, chatInfoParticipant{Name: n, Phone: p.Contact.Phno, IsAdmin: p.IsAdmin})
+			}
+			if d.Subtitle == jid {
+				d.Subtitle = fmt.Sprintf("Group · %d participants", gi.ParticipantCount)
+			}
+		}
+	} else if parsed, err := types.ParseJID(jid); err == nil {
+		if c, err := cv.fa.api.GetContact(parsed); err == nil && c != nil {
+			if n := strings.TrimSpace(c.FullName); n != "" {
+				d.Name = n
+			} else if n := strings.TrimSpace(c.PushName); n != "" {
+				d.Name = n
+			}
+			if c.Phno != "" {
+				d.Subtitle = c.Phno
+			}
+		}
+	}
+	if url, err := cv.fa.api.GetCachedAvatar(jid, false); err == nil && url != "" {
+		d.Avatar = dataURLResource(jid, url)
+	}
+	fyne.Do(func() {
+		if cv.infoPanel != nil {
+			cv.infoPanel.Set(d)
+		}
 	})
 }
