@@ -476,14 +476,7 @@ func (cv *ChatView) mediaBlock(m store.DecodedMessage, kind int, maxW float32) f
 }
 
 func (cv *ChatView) audioBlock() fyne.CanvasObject {
-	icon := canvas.NewText("▶", waText)
-	icon.TextSize = 20
-	label := canvas.NewText("Audio message", waMuted)
-	label.TextSize = 13
-	row := container.NewHBox(container.NewGridWrap(fyne.NewSize(36, 36), container.NewCenter(icon)), label)
-	holder := canvas.NewRectangle(waPanel2)
-	holder.CornerRadius = 6
-	return container.NewMax(holder, container.NewPadded(row))
+	return newAudioBubble(mediaBubbleData{Kind: mediaKindAudio})
 }
 
 func (cv *ChatView) documentBlock(m store.DecodedMessage) fyne.CanvasObject {
@@ -491,23 +484,15 @@ func (cv *ChatView) documentBlock(m store.DecodedMessage) fyne.CanvasObject {
 	if m.Content != nil && m.Content.DocumentMessage != nil && strings.TrimSpace(m.Content.DocumentMessage.FileName) != "" {
 		name = m.Content.DocumentMessage.FileName
 	}
-	badge := canvas.NewText("📄", waText)
-	badge.TextSize = 22
-	title := canvas.NewText(truncateRunes(name, 38), waText)
-	title.TextSize = 13
-	sub := canvas.NewText("Document", waMuted)
-	sub.TextSize = 11
-	col := container.NewVBox(title, sub)
-	row := container.NewBorder(nil, nil, container.NewGridWrap(fyne.NewSize(40, 40), container.NewCenter(badge)), nil, col)
-	holder := canvas.NewRectangle(waPanel2)
-	holder.CornerRadius = 6
-	return container.NewMax(holder, container.NewPadded(row))
+	return newDocumentBubble(mediaBubbleData{Kind: mediaKindDocument, FileName: name, SizeLabel: "Document"})
 }
 
 const (
 	mediaKindImage = iota
 	mediaKindVideo
 	mediaKindSticker
+	mediaKindAudio
+	mediaKindDocument
 )
 
 func mediaDims(m store.DecodedMessage) (int, int) {
