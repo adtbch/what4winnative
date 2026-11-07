@@ -117,7 +117,7 @@ func (a *Api) repairGroupNames() {
 
 	if repaired > 0 {
 		log.Printf("repairGroupNames: repaired %d group name(s)", repaired)
-		a.emitEvent("wa:chat_list_refresh")
+		a.emitEvent("wa:chat_list_refresh", nil)
 	}
 }
 
@@ -144,7 +144,7 @@ func (a *Api) resyncAppState() {
 		}
 		log.Println("App state fully synced:", name)
 	}
-	a.emitEvent("wa:chat_list_refresh")
+	a.emitEvent("wa:chat_list_refresh", nil)
 }
 
 // htmlTagRE strips HTML tags from message previews so desktop notifications
@@ -677,7 +677,7 @@ func (a *Api) mainEventHandler(evt any) {
 			log.Println("Messages DB migration failed:", err)
 		} else {
 			log.Println("Messages DB migration completed successfully")
-			a.emitEvent("wa:chat_list_refresh")
+			a.emitEvent("wa:chat_list_refresh", nil)
 		}
 	case *events.HistorySync:
 		// whatsmeow delivers past conversations here after linking. Reuse the
@@ -691,7 +691,7 @@ func (a *Api) mainEventHandler(evt any) {
 		if err := a.messageStore.SetChatArchived(chatID, v.Action.GetArchived(), v.Timestamp.Unix()); err != nil {
 			log.Println("Failed to store chat archive state:", err)
 		}
-		a.emitEvent("wa:chat_list_refresh")
+		a.emitEvent("wa:chat_list_refresh", nil)
 	case *events.Pin:
 		// Chat pinned/unpinned from another device (or during app state sync).
 		// Same LID->PN canonicalization as Archive.
@@ -699,7 +699,7 @@ func (a *Api) mainEventHandler(evt any) {
 		if err := a.messageStore.SetChatPinned(chatID, v.Action.GetPinned(), v.Timestamp.Unix()); err != nil {
 			log.Println("Failed to store chat pin:", err)
 		}
-		a.emitEvent("wa:chat_list_refresh")
+		a.emitEvent("wa:chat_list_refresh", nil)
 	case *events.MarkChatAsRead:
 		chatID := canonicalUserJID(a.ctx, a.waClient, v.JID).String()
 		if v.Action.GetRead() {
@@ -759,5 +759,5 @@ func (a *Api) processHistorySync(v *events.HistorySync) {
 		}
 	}
 	log.Printf("History sync: stored %d messages from %d conversations", stored, len(conversations))
-	a.emitEvent("wa:chat_list_refresh")
+	a.emitEvent("wa:chat_list_refresh", nil)
 }

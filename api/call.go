@@ -6,7 +6,6 @@ import (
 	"errors"
 
 	"github.com/lugvitc/whats4linux/internal/voip"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"go.mau.fi/whatsmeow/types"
 )
 
@@ -137,7 +136,7 @@ func (a *Api) emitVideoKeyframeRequest() {
 	if a.ctx == nil {
 		return
 	}
-	a.emitEvent("wa:call_video_keyframe")
+	a.emitEvent("wa:call_video_keyframe", nil)
 }
 
 func (a *Api) PlaceCall(target string) error {
