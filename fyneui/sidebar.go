@@ -438,7 +438,7 @@ func (s *Sidebar) fetchChats() (int, error) {
 		fyne.Do(func() {
 			if s.syncLbl != nil {
 				s.syncLbl.Text = "Waiting for WhatsApp\u2026"
-				s.syncLbl.Refresh()
+				fyne.Do(func(){ s.syncLbl.Refresh() })
 			}
 		})
 		return 0, err
@@ -456,7 +456,7 @@ func (s *Sidebar) fetchChats() (int, error) {
 		} else {
 			s.syncLbl.Text = ""
 		}
-		s.syncLbl.Refresh()
+		fyne.Do(func(){ s.syncLbl.Refresh() })
 	})
 	go s.loadAvatars(chats)
 	return len(chats), nil
@@ -554,7 +554,7 @@ func (s *Sidebar) listenEvents() {
 					fyne.Do(func() {
 						if s.syncLbl != nil {
 							s.syncLbl.Text = "Connecting\u2026"
-							s.syncLbl.Refresh()
+							fyne.Do(func(){ s.syncLbl.Refresh() })
 						}
 					})
 				}
