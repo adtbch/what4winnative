@@ -16,15 +16,15 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
 
 ## Progress
 
-**2 / 14 task selesai** — 0 / 26 komponen terverifikasi.
+**3 / 15 task selesai** — 0 / 26 komponen terverifikasi.
 
 | Fase | Selesai | Total |
 |---|---|---|
-| 0 — Fondasi | 2 | 3 |
+| 0 — Fondasi | 3 | 3 |
 | 1 — Sidebar | 0 | 6 |
 | 2 — Chat | 0 | 4 |
 | 3 — Panel & layar | 0 | 2 |
-| **Total** | **2** | **15** |
+| **Total** | **3** | **15** |
 
 ---
 
@@ -46,11 +46,13 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
   - [x] commit `f98d86f` — `test(fyne): headless golden-render harness for component parity`
   - File: `fyneui/golden_test.go`, `fyneui/layout.go`
 
-- [ ] **T3 · Test paritas token vs style.css**
-  - [ ] `fyneui/tokens_test.go`: `TestTokensMatchStyleCSS` (dark-text, dark-muted, dark-bg, dark-tertiary, green, sent-bubble-dark-bg, received-bubble-dark-bg)
-  - [ ] token melenceng diperbaiki di `theme_wa.go`
-  - [ ] tambah `waDayChip` (putih 10%) + `waTime`
-  - [ ] PASS + commit `test(fyne): assert palette tokens match style.css @theme`
+- [x] **T3 · Test paritas token vs style.css**
+  - [x] `fyneui/tokens_test.go`: `TestTokensMatchStyleCSS` — **mem-parse `@theme` dari CSS**, bukan menyalin hex ke Go; gagal otomatis kalau salah satu sisi drift
+  - [x] 8 token dipetakan: `dark-bg`, `dark-tertiary`, `dark-text`, `dark-muted`, `green`, `sent-bubble-dark-bg`, `received-bubble-dark-bg`, `toggle-dark-bg`
+  - [x] `waLink` dijaga terpisah terhadap literal `#53bdeb` (`.msg-link`, bukan `--color-light-primary`)
+  - [x] `parseHex` menangani `#rrggbbaa` (`--color-dropdown-border: #dcdcdc50`)
+  - [x] `waDayChip` + `waTime` sudah ada sejak T1
+  - [x] commit `b2a573f` — `fix(fyne): chat row parity — truncating labels, 48px avatar glyphs, 48-unit viewBox`
   - Spec: `frontend/src/style.css` · File: `fyneui/tokens_test.go`, `fyneui/theme_wa.go`
 
 ---
@@ -81,14 +83,18 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
   - [ ] commit `feat(fyne): search bar component with golden test`
   - Spec: `ChatScreen.tsx:84-95` · File: `fyneui/search_bar.go`
 
-- [ ] **T7 · Chat row**
-  - [ ] `chatRowData{JID,Name,Preview,Time,Pinned,Unread,Avatar,AvatarBg}` + `newChatRow()`/`Set()`
-  - [ ] avatar `w-12 h-12` + `mr-4`, nama `font-medium` truncate, preview `text-sm` muted, waktu `text-xs` (hijau `#21c063` kalau unread), pin, badge `min-w-5 h-5 rounded-full bg-[#21c063]`
-  - [ ] `truncateToWidth` untuk nama & preview (canvas.Text tidak ellipsize sendiri)
-  - [ ] `TestChatRowGolden` + `TestChatRowTruncatesLongName` PASS · PNG `chat_row.png`, `chat_row_long.png` diperiksa
-  - [ ] `chatRowRefs`/`rowRefs` dihapus; app render 300+ baris tanpa panic
-  - [ ] commit `feat(fyne): chat row component with truncation and golden tests`
-  - Spec: `ChatScreen.tsx:247-320` · File: `fyneui/chat_row.go`
+- [ ] **T7 · Chat row** — 🟡 sebagian (geometri + teks + avatar terverifikasi)
+  - [x] tinggi baris **72** = React (`stackedLayout{24,20}` gap 4, py-3) — `TestChatRowHeightMatchesReact`
+  - [x] avatar **48px** di inset **16px** — `TestChatRowAvatarGeometry`
+  - [x] font nama **16 bold**, preview **14** (React `text-base`/`text-sm`)
+  - [x] nama & preview **ellipsize** via `truncLabel` — `canvas.Text` tidak pernah clip, dulu menabrak timestamp
+  - [x] avatar fallback pakai **glyph React** (people grup / person kontak), bukan inisial — `TestAvatarGlyphVisible` (84/153 ink px)
+  - [x] `iconPerson` salah skala (viewBox 48 dipaksa /24 → ter-clip habis) → `svgResourceVB`/`iconImageVB`
+  - [x] `avatarColor` SHA-1 %16 + palet light/dark React — `TestAvatarColorMatchesReact`
+  - [x] PNG `chatrow.png`, `chatrow_geom.png`, `chatrow_fixture_group.png`, `chatrow_fixture_contact.png` diperiksa
+  - [ ] pin + badge unread belum dibandingkan dengan PNG React (fixture belum punya unread/pin terlihat)
+  - [ ] `chatRowRefs`/`rowRefs` belum dihapus — refactor konstruktor murni menyusul
+  - Spec: `ChatScreen.tsx:247-320` · File: `fyneui/sidebar.go`, `fyneui/layout.go`, `fyneui/icons.go`
 
 - [ ] **T8 · Archived entry + empty state**
   - [ ] `newArchivedEntry(count, onOpen)`: ikon arsip hijau `#21c063`, label "Archived", jumlah `text-xs` muted
