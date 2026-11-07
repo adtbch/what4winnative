@@ -44,6 +44,10 @@ type ChatView struct {
 
 	mu              sync.Mutex
 	mediaGeneration uint64
+
+	infoPanel *chatInfoPanel
+	showInfo  bool
+	mainSplit *fyne.Container
 }
 
 func NewChatView(fa *FyneApp, jid string) *ChatView {
@@ -67,7 +71,7 @@ func (cv *ChatView) loadHeader() {
 	cv.header = newChatHeader(func() {
 		cv.cancel()
 		cv.fa.OpenEmptyChat()
-	}, func() {}, chatHeaderData{Name: cv.chatName})
+	}, func() { cv.toggleInfo() }, chatHeaderData{Name: cv.chatName})
 
 	go func() {
 		d := chatHeaderData{Name: cv.chatName}
@@ -554,14 +558,17 @@ func (cv *ChatView) Content() fyne.CanvasObject {
 	header := cv.header
 
 	cv.scroll = container.NewVScroll(container.New(&padLayout{h: 0, v: 6}, cv.messages))
-	body := container.NewMax(chatBackground(fyne.NewSize(0, 0)), cv.scroll)
+	chatBody := container.NewMax(chatBackground(fyne.NewSize(0, 0)), cv.scroll)
 
 	comp, entry := newComposer(func(s string) { cv.sendText(s) }, func() {}, func() {})
 	cv.entry = entry
 	footerBg := canvas.NewRectangle(waPanel)
 	footer := container.NewMax(footerBg, comp)
 
-	return container.NewBorder(header, footer, nil, nil, body)
+	ph := canvas.NewRectangle(color.Transparent)
+	ph.SetMinSize(fyne.NewSize(0, 0))
+	cv.mainSplit = container.NewBorder(nil, nil, nil, ph, chatBody)
+	return container.NewBorder(header, footer, nil, nil, cv.mainSplit)
 }
 
 func minF(a, b float32) float32 {
@@ -631,4 +638,31 @@ func profileColorNRGBA(jid string) color.NRGBA {
 		}
 	}
 	return waGreen
+}
+
+
+func (cv *ChatView) toggleInfo() {
+	cv.showInfo = !cv.showInfo
+	if cv.showInfo && cv.infoPanel == nil {
+		cv.infoPanel = newChatInfoPanel(func() { cv.toggleInfo() })
+		cv.infoPanel.Set(chatInfoData{Name: cv.chatName, Subtitle: cv.jid, IsGroup: isGroupJID(cv.jid)})
+	}
+	cv.refreshLayout()
+}
+
+func (cv *ChatView) refreshLayout() {
+	fyne.Do(func() {
+		if cv.mainSplit == nil { return }
+		body := cv.mainSplit.Objects[0]
+		var right fyne.CanvasObject
+		if cv.showInfo && cv.infoPanel != nil {
+			right = cv.infoPanel
+		} else {
+			right = canvas.NewRectangle(color.Transparent)
+			right.(*canvas.Rectangle).SetMinSize(fyne.NewSize(0, 0))
+		}
+		// keep 0-width placeholder when closed
+		cv.mainSplit.Objects = []fyne.CanvasObject{body, right}
+		cv.mainSplit.Refresh()
+	})
 }
