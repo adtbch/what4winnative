@@ -87,6 +87,19 @@ func (p *tappablePill) Tapped(*fyne.PointEvent) {
 }
 func (p *tappablePill) Cursor() desktop.Cursor { return desktop.PointerCursor }
 
+type chatRowRefs struct {
+	selBg     *canvas.Rectangle
+	name      *canvas.Text
+	time      *canvas.Text
+	preview   *canvas.Text
+	pin       *canvas.Text
+	badge     *fyne.Container
+	badgeTxt  *canvas.Text
+	avatarBg  *canvas.Circle
+	avatarImg *canvas.Image
+	avatarTxt *canvas.Text
+}
+
 type Sidebar struct {
 	fa        *FyneApp
 	mu        sync.RWMutex
@@ -102,6 +115,7 @@ type Sidebar struct {
 	syncLbl   *canvas.Text
 	pillBox   *fyne.Container
 	searchEnt *widget.Entry
+	rowRefs   map[fyne.CanvasObject]*chatRowRefs
 }
 
 func NewSidebar(fa *FyneApp) *Sidebar {
@@ -111,6 +125,7 @@ func NewSidebar(fa *FyneApp) *Sidebar {
 		favourite: make(map[string]bool),
 		avatarRes: make(map[string]fyne.Resource),
 		filter:    filterAll,
+		rowRefs:   make(map[fyne.CanvasObject]*chatRowRefs),
 	}
 
 	s.list = widget.NewList(
@@ -263,8 +278,8 @@ func (s *Sidebar) newRow() fyne.CanvasObject {
 	avatarTxt.Alignment = fyne.TextAlignCenter
 	avatarTxt.TextSize = 15
 	avatarTxt.TextStyle = fyne.TextStyle{Bold: true}
-	avatarStackInner := container.NewMax(avatarBg, avatarImg, container.NewCenter(avatarTxt))
-	avatar := container.NewGridWrap(fyne.NewSize(49, 49), avatarStackInner)
+	avatarInner := container.NewMax(avatarBg, avatarImg, container.NewCenter(avatarTxt))
+	avatar := container.NewGridWrap(fyne.NewSize(49, 49), avatarInner)
 
 	name := canvas.NewText("name", waText)
 	name.TextSize = 15
@@ -293,10 +308,14 @@ func (s *Sidebar) newRow() fyne.CanvasObject {
 	divider := canvas.NewRectangle(waDivider)
 	divider.SetMinSize(fyne.NewSize(0, 1))
 	inner := container.NewBorder(nil, divider, nil, nil, row)
-	return container.NewMax(selBg, inner)
+	root := container.NewMax(selBg, inner)
+	if s.rowRefs == nil { s.rowRefs = make(map[fyne.CanvasObject]*chatRowRefs) }
+	s.rowRefs[root] = &chatRowRefs{selBg: selBg, name: name, time: timeTxt, preview: preview, pin: pin, badge: badge, badgeTxt: badgeTxt, avatarBg: avatarBg, avatarImg: avatarImg, avatarTxt: avatarTxt}
+	return root
 }
 
 func (s *Sidebar) updateRow(id widget.ListItemID, obj fyne.CanvasObject) {
+	defer func(){ recover() }()
 	s.mu.RLock()
 	if id < 0 || id >= len(s.visible) {
 		s.mu.RUnlock()
@@ -305,113 +324,35 @@ func (s *Sidebar) updateRow(id widget.ListItemID, obj fyne.CanvasObject) {
 	c := s.visible[id]
 	unread := s.unread[c.JID]
 	avRes := s.avatarRes[c.JID]
-	s.fa.state.mu.RLock()
-	selected := s.fa.state.SelectedChatID == c.JID
-	s.fa.state.mu.RUnlock()
+	selID := ""
+	if s.fa != nil && s.fa.state != nil { selID = s.fa.state.SelectedChatID }
+	selected := selID == c.JID
 	s.mu.RUnlock()
 
-	root := obj.(*fyne.Container)
-	selBg := root.Objects[0].(*canvas.Rectangle)
-	if selected {
-		selBg.FillColor = waHover
-	} else {
-		selBg.FillColor = color.Transparent
-	}
-	selBg.Refresh()
-
-	inner := root.Objects[1].(*fyne.Container)
-	row := inner.Objects[0].(*fyne.Container)
-	avatarPad := row.Objects[1].(*fyne.Container)
-	avatarWrap := avatarPad.Objects[0].(*fyne.Container)
-	avatarStackObj := avatarWrap.Objects[0]
-	var avatarStack *fyne.Container
-	switch v := avatarStackObj.(type) {
-	case *fyne.Container:
-		avatarStack = v
-	default:
-		// container.Clip in fyne v2
-		if cl, ok := avatarStackObj.(*container.Clip); ok {
-			avatarStack = cl.Content.(*fyne.Container)
-		} else if c, ok := avatarStackObj.(interface{ GetObjects() []fyne.CanvasObject }); ok {
-			_ = c
-			avatarStack = avatarStackObj.(*fyne.Container)
-		} else {
-			avatarStack = avatarStackObj.(*fyne.Container)
-		}
-	}
-	avatarBg := avatarStack.Objects[0].(*canvas.Circle)
-	avatarImg := avatarStack.Objects[1].(*canvas.Image)
-	avatarCenter := avatarStack.Objects[2].(*fyne.Container)
-	avatarTxt := avatarCenter.Objects[0].(*canvas.Text)
-
-	midPad := row.Objects[0].(*fyne.Container)
-	mid := midPad.Objects[0].(*fyne.Container)
-	top := mid.Objects[1].(*fyne.Container)
-	nameTxt := top.Objects[0].(*canvas.Text)
-	timeTxt := top.Objects[2].(*canvas.Text)
-	bottom := mid.Objects[3].(*fyne.Container)
-	prevTxt := bottom.Objects[0].(*canvas.Text)
-	rightBox := bottom.Objects[2].(*fyne.Container)
-	pinTxt := rightBox.Objects[0].(*canvas.Text)
-	badgeWrap := rightBox.Objects[1].(*fyne.Container)
-
+	root, ok := obj.(*fyne.Container)
+	if !ok || s.rowRefs == nil { return }
+	refs := s.rowRefs[root]
+	if refs == nil { return }
+	if selected { refs.selBg.FillColor = waHover } else { refs.selBg.FillColor = color.Transparent }
+	refs.selBg.Refresh()
 	name := chatDisplayName(c)
-	nameTxt.Text = truncateRunes(name, 30)
-	nameTxt.Refresh()
-
+	refs.name.Text = truncateRunes(name, 30); refs.name.Refresh()
 	prev := strings.TrimSpace(c.LatestMessage)
-	if c.Sender != "" && isGroupJID(c.JID) && prev != "" {
-		prev = shortSender(c.Sender) + ": " + prev
-	}
-	if prev == "" {
-		prev = " "
-	}
-	prevTxt.Text = truncateRunes(prev, 44)
-	prevTxt.Refresh()
-
-	timeTxt.Text = formatChatTimestamp(c.LatestTS)
+	if c.Sender != "" && isGroupJID(c.JID) && prev != "" { prev = shortSender(c.Sender) + ": " + prev }
+	if prev == "" { prev = " " }
+	refs.preview.Text = truncateRunes(prev, 44); refs.preview.Refresh()
+	refs.time.Text = formatChatTimestamp(c.LatestTS)
+	if unread > 0 { refs.time.Color = waGreen } else { refs.time.Color = waMuted }
+	refs.time.Refresh()
+	if c.Pinned { refs.pin.Text = "📌" } else { refs.pin.Text = "" }
+	refs.pin.Refresh()
 	if unread > 0 {
-		timeTxt.Color = waGreen
-	} else {
-		timeTxt.Color = waMuted
-	}
-	timeTxt.Refresh()
-
-	if c.Pinned {
-		pinTxt.Text = "\U0001F4CC"
-	} else {
-		pinTxt.Text = ""
-	}
-	pinTxt.Refresh()
-
-	if unread > 0 {
-		badgeMax := badgeWrap.Objects[0].(*fyne.Container)
-		badgeCenter := badgeMax.Objects[1].(*fyne.Container)
-		badgeTxt := badgeCenter.Objects[0].(*canvas.Text)
-		if unread > 99 {
-			badgeTxt.Text = "99+"
-		} else {
-			badgeTxt.Text = fmt.Sprintf("%d", unread)
-		}
-		badgeTxt.Refresh()
-		badgeWrap.Show()
-	} else {
-		badgeWrap.Hide()
-	}
-
-	if avRes != nil {
-		avatarImg.Resource = avRes
-		avatarImg.Show()
-		avatarTxt.Hide()
-		avatarImg.Refresh()
-	} else {
-		avatarImg.Hide()
-		avatarTxt.Show()
-		avatarBg.FillColor = avatarColor(c.JID)
-		avatarTxt.Text = sidebarAvatarInitial(name, c.JID)
-		avatarBg.Refresh()
-		avatarTxt.Refresh()
-	}
+		if unread > 99 { refs.badgeTxt.Text = "99+" } else { refs.badgeTxt.Text = fmt.Sprintf("%d", unread) }
+		refs.badgeTxt.Refresh(); refs.badge.Show()
+	} else { refs.badge.Hide() }
+	refs.avatarBg.FillColor = avatarColor(c.JID); refs.avatarBg.Refresh()
+	if avRes != nil { refs.avatarImg.Resource = avRes; refs.avatarImg.Show(); refs.avatarImg.Refresh(); refs.avatarTxt.Hide()
+	} else { refs.avatarImg.Hide(); refs.avatarTxt.Text = initials(name); refs.avatarTxt.Refresh(); refs.avatarTxt.Show() }
 }
 
 func (s *Sidebar) loadLoop() {
@@ -845,4 +786,13 @@ func spacer(w, h float32) fyne.CanvasObject {
 
 func (s *Sidebar) Reload() {
 	go s.fetchChats()
+}
+
+
+func initials(name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" { return "?" }
+	r := []rune(name)
+	if len(r) == 1 { return strings.ToUpper(string(r)) }
+	return strings.ToUpper(string(r[0]))
 }

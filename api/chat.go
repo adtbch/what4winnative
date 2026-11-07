@@ -66,6 +66,10 @@ func (a *Api) ToggleChatArchive(jidStr string, archived bool) error {
 }
 
 func (a *Api) GetChatList() ([]ChatElement, error) {
+	a.waitForStartup()
+	if a.messageStore == nil || a.cw == nil {
+		return []ChatElement{}, nil
+	}
 	cmList := a.messageStore.GetChatList()
 	pinnedChats := a.messageStore.GetPinnedChats()
 	archivedChats := a.messageStore.GetArchivedChats()
@@ -157,6 +161,10 @@ func (a *Api) GetChatList() ([]ChatElement, error) {
 // GetChannelList returns the followed Channels (newsletter feeds), named via
 // their newsletter metadata.
 func (a *Api) GetChannelList() ([]ChatElement, error) {
+	a.waitForStartup()
+	if a.messageStore == nil {
+		return []ChatElement{}, nil
+	}
 	cmList := a.messageStore.GetChannelList()
 	ce := make([]ChatElement, len(cmList))
 	for i, cm := range cmList {
