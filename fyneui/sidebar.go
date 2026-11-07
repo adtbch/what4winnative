@@ -263,8 +263,8 @@ func (s *Sidebar) newRow() fyne.CanvasObject {
 	avatarTxt.Alignment = fyne.TextAlignCenter
 	avatarTxt.TextSize = 15
 	avatarTxt.TextStyle = fyne.TextStyle{Bold: true}
-	avatarClip := container.NewClip(container.NewMax(avatarBg, avatarImg, container.NewCenter(avatarTxt)))
-	avatar := container.NewGridWrap(fyne.NewSize(49, 49), avatarClip)
+	avatarStackInner := container.NewMax(avatarBg, avatarImg, container.NewCenter(avatarTxt))
+	avatar := container.NewGridWrap(fyne.NewSize(49, 49), avatarStackInner)
 
 	name := canvas.NewText("name", waText)
 	name.TextSize = 15
@@ -323,8 +323,22 @@ func (s *Sidebar) updateRow(id widget.ListItemID, obj fyne.CanvasObject) {
 	row := inner.Objects[0].(*fyne.Container)
 	avatarPad := row.Objects[1].(*fyne.Container)
 	avatarWrap := avatarPad.Objects[0].(*fyne.Container)
-	avatarClip := avatarWrap.Objects[0].(*fyne.Container)
-	avatarStack := avatarClip.Objects[0].(*fyne.Container)
+	avatarStackObj := avatarWrap.Objects[0]
+	var avatarStack *fyne.Container
+	switch v := avatarStackObj.(type) {
+	case *fyne.Container:
+		avatarStack = v
+	default:
+		// container.Clip in fyne v2
+		if cl, ok := avatarStackObj.(*container.Clip); ok {
+			avatarStack = cl.Content.(*fyne.Container)
+		} else if c, ok := avatarStackObj.(interface{ GetObjects() []fyne.CanvasObject }); ok {
+			_ = c
+			avatarStack = avatarStackObj.(*fyne.Container)
+		} else {
+			avatarStack = avatarStackObj.(*fyne.Container)
+		}
+	}
 	avatarBg := avatarStack.Objects[0].(*canvas.Circle)
 	avatarImg := avatarStack.Objects[1].(*canvas.Image)
 	avatarCenter := avatarStack.Objects[2].(*fyne.Container)
@@ -469,6 +483,7 @@ func (s *Sidebar) refreshVisible() {
 	s.rebuildPills()
 	fyne.Do(func() {
 		if s.list != nil {
+			s.list.UnselectAll()
 			s.list.Refresh()
 		}
 	})
