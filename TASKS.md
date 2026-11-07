@@ -16,15 +16,15 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
 
 ## Progress
 
-**7 / 15 task selesai** — 8 / 26 komponen terverifikasi.
+**8 / 15 task selesai** — 11 / 26 komponen terverifikasi.
 
 | Fase | Selesai | Total |
 |---|---|---|
 | 0 — Fondasi | 3 | 3 |
-| 1 — Sidebar | 4 | 5 |
+| 1 — Sidebar | 5 | 5 |
 | 2 — Chat | 0 | 5 |
 | 3 — Panel & layar | 0 | 2 |
-| **Total** | **7** | **15** |
+| **Total** | **8** | **15** |
 
 ---
 
@@ -110,13 +110,17 @@ Kalau salah satu gagal → baris tetap `[ ]`, tulis blocker di kolom Catatan.
   - [x] `chatRowRefs`/`rowRefs` dipertahankan (dipakai `updateRow` untuk widget recycling) — refactor konstruktor murni menyusul di T14a
   - Spec: `ChatScreen.tsx:247-320` · File: `fyneui/sidebar.go`, `fyneui/chatrow_badge.go`, `fyneui/layout.go`, `fyneui/icons.go`
 
-- [ ] **T8 · Archived entry + empty state**
-  - [ ] `newArchivedEntry(count, onOpen)`: ikon arsip hijau `#21c063`, label "Archived", jumlah `text-xs` muted
-  - [ ] `newSidebarEmptyState(hasChats, onRetry)`: "No chats match your search." / "No chats available. Start a conversation!" + tombol "Refresh Chats"
-  - [ ] `TestArchivedEntryGolden` + `TestEmptyStateGolden` PASS · PNG diperiksa
-  - [ ] `archivedRow`/placeholder lama diganti
-  - [ ] commit `feat(fyne): archived entry and empty state components`
-  - Spec: `ChatScreen.tsx:362-375, 861-874` · File: `fyneui/sidebar_states.go`
+- [x] **T8 · Archived entry + empty state** ✅ `30e0ca2`
+  - [x] `newArchivedEntry(count, onOpen)` — baris 48px, `px-4 py-3`, `gap-4`; glyph arsip 20px di x=30 `rgb(33,192,99)`; label 16px medium; count 12px muted rata kanan (ink x 201..202 vs React 200..202)
+  - [x] `newArchivedHeader(onBack)` — tampilan saat masuk arsip: panah balik 24px di x=16, label di x=56, hairline bawah; entry disembunyikan
+  - [x] `newSidebarEmptyState(hasChats, onRefresh)` — `p-8`, paragraf 16px/24px `#99a1af` dirapatkan ke baris (x=32 w=157, y=171.5 vs React 172), CTA 128×40 `#00c950` radius 8, gap 16px (x=47 vs 46, y=235.5 vs 236)
+  - [x] `TestArchivedEntryGolden`, `TestArchivedEntryVisibility`, `TestArchivedHeaderGeometry`, `TestEmptyStateGolden`, `TestEmptyStateStrings`, `TestEmptyStateWraps` — 6 PASS
+  - [x] `archivedRow`/placeholder lama diganti: entry + header masuk `topBar()`, `body()` pakai `container.NewMax(list, placeholder, emptyS)`
+  - [x] **BUG**: `emptyState` tidak pernah render apa pun — `BaseWidget` belum di-`ExtendBaseWidget`, jadi renderer tidak pernah layout anak-anaknya
+  - [x] **BUG**: CTA tidak punya `MinSize` → mengecil ke 104×22 milik label
+  - [x] **BUG**: `canvas.Text` tidak bisa wrap → paragraf dipecah per baris (`wrapText`) dan diulang saat `Resize`
+  - [x] **BUG**: `syncChrome` cuma `RLock` padahal harus menulis `archived = false` saat arsip kosong (`ChatScreen.tsx:593`)
+  - Spec: `ChatScreen.tsx:355-374, 859-887` · File: `fyneui/sidebar_states.go`, `fyneui/sidebar.go`, `fyneui/icons.go`
 
 - [ ] **T9 · Chat header**
   - [ ] `newChatHeader(onBack, onInfo, onCall)` + `Set(chatHeaderData)`
