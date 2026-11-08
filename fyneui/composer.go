@@ -58,7 +58,8 @@ func newSendCircle(onTap func()) fyne.CanvasObject {
 
 type tapArea struct {
 	widget.BaseWidget
-	onTap func()
+	onTap   func()
+	minSize fyne.Size
 }
 
 func newTapArea(onTap func()) *tapArea {
@@ -68,6 +69,13 @@ func newTapArea(onTap func()) *tapArea {
 }
 func (t *tapArea) CreateRenderer() fyne.WidgetRenderer {
 	return widget.NewSimpleRenderer(canvas.NewRectangle(color.Transparent))
+}
+
+func (t *tapArea) MinSize() fyne.Size {
+	if t.minSize.Width > 0 || t.minSize.Height > 0 {
+		return t.minSize
+	}
+	return fyne.NewSize(44, 44)
 }
 func (t *tapArea) Tapped(*fyne.PointEvent) {
 	if t.onTap != nil {

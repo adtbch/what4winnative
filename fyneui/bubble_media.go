@@ -62,8 +62,8 @@ func newImageVideoBubble(d mediaBubbleData, video bool) fyne.CanvasObject {
 			ph = "GIF"
 		}
 	}
-	phTxt := canvas.NewText(ph, waMuted)
-	phTxt.TextSize = 12
+	phTxt := canvas.NewText(ph+" (offline/cache)", waMuted)
+	phTxt.TextSize = 13
 	phTxt.Alignment = fyne.TextAlignCenter
 
 	img := canvas.NewImageFromResource(d.Thumb)
