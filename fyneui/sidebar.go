@@ -607,6 +607,7 @@ func (s *Sidebar) listenEvents() {
 	readCh := SubscribeEvent("wa:chat_marked_read")
 	unreadCh := SubscribeEvent("wa:chat_marked_unread")
 	picCh := SubscribeEvent("wa:picture_update")
+	myPicCh := SubscribeEvent("wa:self_avatar_updated")
 
 	debounce := time.NewTimer(time.Hour)
 	debounce.Stop()
@@ -629,6 +630,7 @@ func (s *Sidebar) listenEvents() {
 				switch v {
 				case "logged_in", "success", "connected", "synced", "ready":
 					s.fetchChats()
+					go s.loadSelfAvatar()
 				case "connecting":
 					fyne.Do(func() {
 						if s.statusLbl != nil {
@@ -667,6 +669,18 @@ func (s *Sidebar) listenEvents() {
 		case data := <-picCh:
 			if jid, ok := data.(string); ok && jid != "" {
 				go s.loadAvatar(jid, true)
+			}
+		case data := <-myPicCh:
+			if dataURL, ok := data.(string); ok && dataURL != "" && s.header != nil {
+				if res := resourceFromDataURL("self-avatar", dataURL); res != nil {
+					fyne.Do(func() {
+						if s.header != nil {
+							s.header.SetSelfAvatar(res)
+						}
+					})
+				}
+			} else {
+				go s.loadSelfAvatar()
 			}
 		}
 	}

@@ -685,7 +685,12 @@ func (a *Api) mainEventHandler(evt any) {
 		if err := a.waClient.SendPresence(a.ctx, types.PresenceAvailable); err != nil {
 			log.Println("failed to send available presence:", err)
 		}
-		a.startBackground(func() { _, _ = a.GetSelfAvatar(false) })
+		a.startBackground(func() {
+			url, err := a.GetSelfAvatar(false)
+			if err == nil && url != "" {
+				a.emitEvent("wa:self_avatar_updated", url)
+			}
+		})
 		// Run migration for messages.db
 		err := a.messageStore.MigrateLIDToPN(a.ctx, a.waClient.Store.LIDs)
 		if err != nil {
