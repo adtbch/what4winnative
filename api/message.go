@@ -495,6 +495,13 @@ func (a *Api) SendMessage(chatJID string, content MessageContent) (string, error
 			break
 		}
 		es := strings.ToLower(sendErr.Error())
+			// If websocket is down, try reconnect and wait until ready
+			if strings.Contains(es, "websocket not connected") || strings.Contains(es, "not connected") {
+				log.Println("Attempting reconnect before retry")
+				if err := a.waClient.Connect(); err != nil { log.Println("Reconnect failed:", err) }
+				// Wait a bit for connection to settle
+				for i:=0; i<5 && !a.IsWaConnected(); i++ { time.Sleep(200 * time.Millisecond) }
+			}
 		if attempt < 2 && (strings.Contains(es, "websocket") || strings.Contains(es, "not connected") || strings.Contains(es, "usync") || strings.Contains(es, "connection")) {
 			log.Println("SendMessage retry:", attempt+1, sendErr)
 			time.Sleep(time.Duration(attempt+1) * 1500 * time.Millisecond)
