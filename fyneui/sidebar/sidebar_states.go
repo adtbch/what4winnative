@@ -1,4 +1,4 @@
-package fyneui
+package sidebar
 
 import (
 	"image/color"
@@ -10,6 +10,8 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/widget"
+	"github.com/lugvitc/whats4linux/fyneui/theme"
+	"github.com/lugvitc/whats4linux/fyneui/utils"
 )
 
 // Values measured from frontend/src/harness.tsx `out.archived` and `out.empty`
@@ -46,11 +48,11 @@ const (
 // React: `text-[#1b9a58] dark:text-[#21c063]` — the dark token is the app's
 // default, so the archive glyph uses the same green as the unread badge.
 var (
-	waArchiveGreen = color.NRGBA{R: 0x21, G: 0xc0, B: 0x63, A: 0xff}
+	WaArchiveGreen = color.NRGBA{R: 0x21, G: 0xc0, B: 0x63, A: 0xff}
 	// tailwind `bg-green-500` resolves to oklch(0.723 0.219 149.579) = #00c950.
-	waBtnGreen = color.NRGBA{R: 0x00, G: 0xc9, B: 0x50, A: 0xff}
-	waBtnHover = color.NRGBA{R: 0x00, G: 0xa8, B: 0x43, A: 0xff} // green-600
-	waEmptyFg  = color.NRGBA{R: 0x99, G: 0xa1, B: 0xaf, A: 0xff} // gray-400
+	WaBtnGreen = color.NRGBA{R: 0x00, G: 0xc9, B: 0x50, A: 0xff}
+	WaBtnHover = color.NRGBA{R: 0x00, G: 0xa8, B: 0x43, A: 0xff} // green-600
+	WaEmptyFg  = color.NRGBA{R: 0x99, G: 0xa1, B: 0xaf, A: 0xff} // gray-400
 )
 
 // archivedEntry is the "Archived" row above the chat list
@@ -71,14 +73,14 @@ func newArchivedEntry(count int, onTap func()) *archivedEntry {
 	e.ExtendBaseWidget(e)
 
 	e.bg = canvas.NewRectangle(color.Transparent)
-	e.icon = iconImage("archived-icon", iconArchive, archivedIconSize, waArchiveGreen)
+	e.icon = utils.IconImage("archived-icon", utils.IconArchive, archivedIconSize, WaArchiveGreen)
 
-	e.label = canvas.NewText("Archived", waText)
+	e.label = canvas.NewText("Archived", theme.WaText)
 	e.label.TextSize = archivedFontSize
 	e.label.TextStyle = fyne.TextStyle{Bold: true} // font-medium (Fyne has no 500)
 	e.label.Alignment = fyne.TextAlignLeading
 
-	e.count = canvas.NewText(strconv.Itoa(count), waMuted)
+	e.count = canvas.NewText(strconv.Itoa(count), theme.WaMuted)
 	e.count.TextSize = archivedCountSz
 	e.count.Alignment = fyne.TextAlignTrailing
 
@@ -104,7 +106,7 @@ func (e *archivedEntry) Tapped(*fyne.PointEvent) {
 }
 
 func (e *archivedEntry) MouseIn(*desktop.MouseEvent) {
-	e.bg.FillColor = waHover
+	e.bg.FillColor = theme.WaHover
 	e.bg.Refresh()
 }
 
@@ -163,14 +165,14 @@ func newArchivedHeader(onBack func()) *archivedHeader {
 	h.ExtendBaseWidget(h)
 	// GoBackIcon is a 24px svg (header_icons.tsx:1-9) inside a plain <button>
 	// with no hover chrome, so the layout owns the hit box.
-	h.back = iconImage("archived-back", iconBack, archivedBackSize, waMuted)
+	h.back = utils.IconImage("archived-back", utils.IconBack, archivedBackSize, theme.WaMuted)
 	h.onBack = onBack
 
-	h.label = canvas.NewText("Archived", waText)
+	h.label = canvas.NewText("Archived", theme.WaText)
 	h.label.TextSize = archivedFontSize
 	h.label.TextStyle = fyne.TextStyle{Bold: true}
 
-	h.line = canvas.NewRectangle(waHeaderDivider)
+	h.line = canvas.NewRectangle(theme.WaHeaderDivider)
 	return h
 }
 
@@ -224,13 +226,13 @@ const emptyMaxLines = 4
 func newSidebarEmptyState(hasChats bool, onRefresh func()) *emptyState {
 	e := &emptyState{hasAny: hasChats}
 	for i := 0; i < emptyMaxLines; i++ {
-		t := canvas.NewText("", waEmptyFg)
+		t := canvas.NewText("", WaEmptyFg)
 		t.TextSize = emptyFontSize
 		t.Alignment = fyne.TextAlignCenter
 		t.Hide()
 		e.msg = append(e.msg, t)
 	}
-	e.btn = newButton("Refresh Chats", waBtnGreen, waBtnHover, onRefresh)
+	e.btn = newButton("Refresh Chats", WaBtnGreen, WaBtnHover, onRefresh)
 	e.ExtendBaseWidget(e)
 	e.rewrap()
 	return e

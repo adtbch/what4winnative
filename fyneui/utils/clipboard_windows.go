@@ -1,6 +1,6 @@
 //go:build windows
 
-package fyneui
+package utils
 
 import (
 	"bytes"
@@ -28,7 +28,7 @@ const cfDIB = 8
 
 // readClipboardImagePNG reads a DIB/bitmap image from the Windows clipboard
 // and returns PNG-encoded bytes. Returns (nil, nil) when clipboard has no image.
-func readClipboardImagePNG() ([]byte, error) {
+func ReadClipboardImagePNG() ([]byte, error) {
 	r, _, _ := procOpenClipboard.Call(0)
 	if r == 0 {
 		return nil, fmt.Errorf("open clipboard failed")

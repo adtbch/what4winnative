@@ -1,13 +1,13 @@
-package fyneui
+package chat
 
 import (
-	"errors"
-	"net/url"
-	"encoding/base64"
 	"context"
+	"encoding/base64"
+	"errors"
 	"fmt"
 	"image/color"
 	"log"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -21,6 +21,8 @@ import (
 	"fyne.io/fyne/v2/layout"
 
 	"github.com/lugvitc/whats4linux/api"
+	"github.com/lugvitc/whats4linux/fyneui/theme"
+	"github.com/lugvitc/whats4linux/fyneui/utils"
 	"github.com/lugvitc/whats4linux/internal/misc"
 	"github.com/lugvitc/whats4linux/internal/store"
 	"go.mau.fi/whatsmeow/types"
@@ -28,8 +30,19 @@ import (
 
 // ChatView mirrors frontend/src/screens/ChatDetail.tsx +
 // components/chat/{MessageList,MessageItem,ChatInput}.tsx.
+
+// App is the host surface ChatView needs: WhatsApp API, Fyne context, window
+// and empty-chat reset. Implemented by fyneui.FyneApp so chat never imports
+// the shell package.
+type App interface {
+	API() *api.Api
+	Ctx() context.Context
+	Win() fyne.Window
+	OpenEmptyChat()
+}
+
 type ChatView struct {
-	fa       *FyneApp
+	fa       App
 	jid      string
 	chatName string
 	messages *fyne.Container
@@ -53,10 +66,10 @@ type ChatView struct {
 	mainSplit *fyne.Container
 }
 
-func NewChatView(fa *FyneApp, jid string) *ChatView {
-	ctx, cancel := context.WithCancel(fa.ctx)
+func NewChatView(host App, jid string) *ChatView {
+	ctx, cancel := context.WithCancel(host.Ctx())
 	cv := &ChatView{
-		fa:        fa,
+		fa:        host,
 		jid:       jid,
 		chatName:  chatNameFromJID(jid),
 		messages:  container.NewVBox(),
@@ -79,15 +92,15 @@ func (cv *ChatView) loadHeader() {
 	go func() {
 		d := chatHeaderData{Name: cv.chatName}
 
-		if isGroupJID(cv.jid) {
-			if gi, err := cv.fa.api.GetGroupInfo(cv.jid); err == nil {
+		if utils.IsGroupJID(cv.jid) {
+			if gi, err := cv.fa.API().GetGroupInfo(cv.jid); err == nil {
 				if n := strings.TrimSpace(gi.GroupName); n != "" {
 					d.Name = n
 				}
 				d.Subtitle = cv.groupSubtitle(gi)
 			}
 		} else if parsed, err := types.ParseJID(cv.jid); err == nil {
-			if contact, cerr := cv.fa.api.GetContact(parsed); cerr == nil && contact != nil {
+			if contact, cerr := cv.fa.API().GetContact(parsed); cerr == nil && contact != nil {
 				if n := strings.TrimSpace(contact.FullName); n != "" {
 					d.Name = n
 				} else if n := strings.TrimSpace(contact.PushName); n != "" {
@@ -96,11 +109,13 @@ func (cv *ChatView) loadHeader() {
 			}
 			// ChatDetail.tsx only passes onCallClick for contacts.
 			d.Call = func() {
-				if cv.fa == nil || cv.fa.api == nil { return }
+				if cv.fa == nil || cv.fa.API() == nil {
+					return
+				}
 				go func() {
-					if err := cv.fa.api.PlaceCall(cv.jid); err != nil {
+					if err := cv.fa.API().PlaceCall(cv.jid); err != nil {
 						log.Println("place call:", err)
-						fyne.Do(func() { dialog.ShowError(fmt.Errorf("call failed: %w", err), cv.fa.win) })
+						fyne.Do(func() { dialog.ShowError(fmt.Errorf("call failed: %w", err), cv.fa.Win()) })
 					}
 				}()
 			}
@@ -108,7 +123,7 @@ func (cv *ChatView) loadHeader() {
 		cv.chatName = d.Name
 
 		// avatar photo: same backend call the React list/detail header uses
-		if url, err := cv.fa.api.GetCachedAvatar(cv.jid, false); err == nil && url != "" {
+		if url, err := cv.fa.API().GetCachedAvatar(cv.jid, false); err == nil && url != "" {
 			d.Avatar = dataURLResource(cv.jid, url)
 		}
 		fyne.Do(func() {
@@ -117,12 +132,16 @@ func (cv *ChatView) loadHeader() {
 			}
 		})
 		// If no cached avatar, fetch once and refresh.
-		if d.Avatar == nil && cv.fa != nil && cv.fa.api != nil {
-			if url, err := cv.fa.api.GetCachedAvatar(cv.jid, true); err == nil && url != "" {
+		if d.Avatar == nil && cv.fa != nil && cv.fa.API() != nil {
+			if url, err := cv.fa.API().GetCachedAvatar(cv.jid, true); err == nil && url != "" {
 				if res := dataURLResource(cv.jid, url); res != nil {
 					d2 := d
 					d2.Avatar = res
-					fyne.Do(func() { if cv.header != nil { cv.header.Set(d2) } })
+					fyne.Do(func() {
+						if cv.header != nil {
+							cv.header.Set(d2)
+						}
+					})
 				}
 			}
 		}
@@ -133,7 +152,7 @@ func (cv *ChatView) loadHeader() {
 // self filtered out by phone/JID, each participant labelled by the first of
 // full name → "~ push name" → short → formatted phone.
 func (cv *ChatView) groupSubtitle(gi api.Group) string {
-	self, _ := cv.fa.api.GetProfile("")
+	self, _ := cv.fa.API().GetProfile("")
 	parts := []string{"You"}
 	for _, p := range gi.Participants {
 		c := p.Contact
@@ -183,7 +202,7 @@ func formatPhone(digits string) string {
 }
 
 func (cv *ChatView) loadMessages(ctx context.Context) {
-	msgs, err := cv.fa.api.FetchMessagesPaged(cv.jid, 80, 0, "")
+	msgs, err := cv.fa.API().FetchMessagesPaged(cv.jid, 80, 0, "")
 	log.Println("chat", cv.jid, "msgs:", len(msgs), err)
 	if err != nil {
 		log.Println("FetchMessages:", cv.jid, err)
@@ -197,7 +216,7 @@ func (cv *ChatView) loadMessages(ctx context.Context) {
 		cv.lastSenderID = ""
 		cv.lastFromMe = false
 		if len(msgs) == 0 {
-			empty := canvas.NewText("No messages here yet.", waMuted)
+			empty := canvas.NewText("No messages here yet.", theme.WaMuted)
 			empty.Alignment = fyne.TextAlignCenter
 			empty.TextSize = 13
 			cv.messages.Add(container.NewCenter(container.NewPadded(empty)))
@@ -217,7 +236,7 @@ func (cv *ChatView) loadMessages(ctx context.Context) {
 			}
 		}
 		if len(ids) > 0 {
-			if err := cv.fa.api.MarkRead(cv.jid, ids, "read"); err != nil {
+			if err := cv.fa.API().MarkRead(cv.jid, ids, "read"); err != nil {
 				log.Println("MarkRead:", err)
 			}
 		}
@@ -247,15 +266,23 @@ func (cv *ChatView) addMessageLocked(m store.DecodedMessage) {
 
 func (cv *ChatView) scrollToBottom() {
 	fyne.Do(func() {
-		if cv.scroll == nil || cv.messages == nil { return }
-		cv.messages.Refresh(); cv.scroll.Refresh(); cv.scroll.ScrollToBottom()
+		if cv.scroll == nil || cv.messages == nil {
+			return
+		}
+		cv.messages.Refresh()
+		cv.scroll.Refresh()
+		cv.scroll.ScrollToBottom()
 		go func() {
-			for _, d := range []time.Duration{50*time.Millisecond, 150*time.Millisecond, 400*time.Millisecond} {
+			for _, d := range []time.Duration{50 * time.Millisecond, 150 * time.Millisecond, 400 * time.Millisecond} {
 				time.Sleep(d)
 				fyne.Do(func() {
-					if cv.scroll == nil || cv.messages == nil { return }
+					if cv.scroll == nil || cv.messages == nil {
+						return
+					}
 					h := cv.messages.MinSize().Height - cv.scroll.Size().Height
-					if h > 0 { cv.scroll.Offset.Y = h }
+					if h > 0 {
+						cv.scroll.Offset.Y = h
+					}
 					cv.scroll.Refresh()
 				})
 			}
@@ -264,8 +291,8 @@ func (cv *ChatView) scrollToBottom() {
 }
 
 func (cv *ChatView) listenEvents(ctx context.Context) {
-	newCh := SubscribeEvent("wa:new_message")
-	updCh := SubscribeEvent("wa:message_update")
+	newCh := utils.SubscribeEvent("wa:new_message")
+	updCh := utils.SubscribeEvent("wa:message_update")
 	for {
 		select {
 		case <-ctx.Done():
@@ -289,7 +316,7 @@ func (cv *ChatView) listenEvents(ctx context.Context) {
 // appendLatest re-reads the newest page so every row is built from the same
 // DecodedMessage shape as the initial load.
 func (cv *ChatView) appendLatest() {
-	msgs, err := cv.fa.api.FetchMessagesPaged(cv.jid, 25, 0, "")
+	msgs, err := cv.fa.API().FetchMessagesPaged(cv.jid, 25, 0, "")
 	if err != nil || len(msgs) == 0 {
 		return
 	}
@@ -310,7 +337,7 @@ func (cv *ChatView) appendLatest() {
 	})
 	if len(newUnreadIDs) > 0 {
 		go func(ids []string) {
-			if err := cv.fa.api.MarkRead(cv.jid, ids, "read"); err != nil {
+			if err := cv.fa.API().MarkRead(cv.jid, ids, "read"); err != nil {
 				log.Println("MarkRead appendLatest:", err)
 			}
 		}(newUnreadIDs)
@@ -343,9 +370,9 @@ func formatMsgTimestamp(ts string) string {
 // time + ticks inside the bubble. first controls group/avatar/spacing run.
 func (cv *ChatView) bubble(m store.DecodedMessage, first bool) fyne.CanvasObject {
 	fromMe := m.Info.IsFromMe
-	bg := waRecv
+	bg := theme.WaRecv
 	if fromMe {
-		bg = waSent
+		bg = theme.WaSent
 	}
 	card := canvas.NewRectangle(bg)
 	card.CornerRadius = 8
@@ -391,7 +418,7 @@ func (cv *ChatView) bubble(m store.DecodedMessage, first bool) fyne.CanvasObject
 	}
 
 	inner := container.NewVBox(container.NewPadded(body), cv.metaRow(m, fromMe))
-	if isGroupJID(cv.jid) && !fromMe && first {
+	if utils.IsGroupJID(cv.jid) && !fromMe && first {
 		col := profileColorNRGBA(m.Info.Sender)
 		name := canvas.NewText(senderLabel(m), col)
 		name.TextSize = 11
@@ -403,7 +430,7 @@ func (cv *ChatView) bubble(m store.DecodedMessage, first bool) fyne.CanvasObject
 	// Pragmatic: plain text without http(s) gets tap-to-copy.
 	if plain != "" && !strings.Contains(plain, "http://") && !strings.Contains(plain, "https://") {
 		copyText := plain
-		copyTap := newTapArea(func() {
+		copyTap := NewTapArea(func() {
 			fyne.CurrentApp().Clipboard().SetContent(copyText)
 			log.Println("copied message")
 		})
@@ -432,7 +459,7 @@ func cvWrapBubble(fromMe, first bool, content *store.DecodedMessageContent, inne
 	} else {
 		row = container.NewHBox(stack, layout.NewSpacer())
 	}
-	return container.NewBorder(spacer(1, top), spacer(1, 1), spacer(12, 1), spacer(12, 1), row)
+	return container.NewBorder(utils.Spacer(1, top), utils.Spacer(1, 1), utils.Spacer(12, 1), utils.Spacer(12, 1), row)
 }
 
 func (cv *ChatView) wrapBubble(fromMe, first bool, content *store.DecodedMessageContent, inner fyne.CanvasObject) fyne.CanvasObject {
@@ -442,15 +469,15 @@ func (cv *ChatView) wrapBubble(fromMe, first bool, content *store.DecodedMessage
 func (cv *ChatView) metaRow(m store.DecodedMessage, fromMe bool) fyne.CanvasObject {
 	row := container.NewHBox()
 	if m.Edited {
-		e := canvas.NewText("Edited ", waTime)
+		e := canvas.NewText("Edited ", theme.WaTime)
 		e.TextSize = 11
 		row.Add(e)
 	}
-	ts := canvas.NewText(formatMsgTimestamp(m.Info.Timestamp), waTime)
+	ts := canvas.NewText(formatMsgTimestamp(m.Info.Timestamp), theme.WaTime)
 	ts.TextSize = 11
 	row.Add(ts)
 	if fromMe {
-		ticks := canvas.NewText(" ✓✓", waTick)
+		ticks := canvas.NewText(" ✓✓", theme.WaTick)
 		ticks.TextSize = 11
 		row.Add(ticks)
 	}
@@ -465,14 +492,14 @@ func (cv *ChatView) textBlock(src string, maxW float32) fyne.CanvasObject {
 	}
 	plain := strings.TrimSpace(htmlToText(src))
 	if plain == "" {
-		return canvas.NewText(" ", waText)
+		return canvas.NewText(" ", theme.WaText)
 	}
 	// MessageItem.tsx:283 — emoji-only messages render at 32px (leading-10),
 	// no rich markup. Detected on the stripped plain text.
 	if emojiOnlyText(src) {
-		t := canvas.NewText(plain, waText)
+		t := canvas.NewText(plain, theme.WaText)
 		t.TextSize = 32
-		return wrapFixed(t, minF(fyne.MeasureText(plain, 32, fyne.TextStyle{}).Width+4, inner), 40)
+		return utils.WrapFixed(t, minF(fyne.MeasureText(plain, 32, fyne.TextStyle{}).Width+4, inner), 40)
 	}
 	// Long text clamp/Read more (MessageItem.tsx LONG_TEXT_CHARS/LINES). YAGNI:
 	// collapsed renders truncated plain (drops rich markup) to avoid HTML slicing.
@@ -511,7 +538,7 @@ func (cv *ChatView) mediaBlock(m store.DecodedMessage, kind int, maxW float32) f
 	img.FillMode = canvas.ImageFillContain
 	img.SetMinSize(size)
 
-	holder := canvas.NewRectangle(waPanel2)
+	holder := canvas.NewRectangle(theme.WaPanel2)
 	holder.CornerRadius = 6
 	// Placeholder label behind the image so a bubble is never blank while the
 	// media is still being fetched (React shows a blurred placeholder box).
@@ -522,7 +549,7 @@ func (cv *ChatView) mediaBlock(m store.DecodedMessage, kind int, maxW float32) f
 	case mediaKindSticker:
 		ph = "Sticker"
 	}
-	phTxt := canvas.NewText(ph, waMuted)
+	phTxt := canvas.NewText(ph, theme.WaMuted)
 	phTxt.TextSize = 12
 	phTxt.Alignment = fyne.TextAlignCenter
 	box := container.NewMax(holder, container.NewCenter(phTxt), img)
@@ -536,11 +563,13 @@ func (cv *ChatView) mediaBlock(m store.DecodedMessage, kind int, maxW float32) f
 	chatJID := chatID
 	onTap := func() {
 		go func() {
-			if cv.fa == nil || cv.fa.api == nil { return }
-			path, err := cv.fa.api.SaveMediaToDownloads(chatJID, msgID)
+			if cv.fa == nil || cv.fa.API() == nil {
+				return
+			}
+			path, err := cv.fa.API().SaveMediaToDownloads(chatJID, msgID)
 			if err != nil {
 				log.Println("open media:", err)
-				fyne.Do(func() { dialog.ShowError(fmt.Errorf("open failed: %w", err), cv.fa.win) })
+				fyne.Do(func() { dialog.ShowError(fmt.Errorf("open failed: %w", err), cv.fa.Win()) })
 				return
 			}
 			if u, err := url.Parse("file:///" + strings.ReplaceAll(path, "\\", "/")); err == nil {
@@ -549,14 +578,14 @@ func (cv *ChatView) mediaBlock(m store.DecodedMessage, kind int, maxW float32) f
 		}()
 	}
 	if kind == mediaKindVideo {
-		play := canvas.NewText("▶", waWhite)
+		play := canvas.NewText("▶", theme.WaWhite)
 		play.TextSize = 34
 		play.Alignment = fyne.TextAlignCenter
-		circle := canvas.NewCircle(waPlayOverlay)
+		circle := canvas.NewCircle(theme.WaPlayOverlay)
 		overlay := container.NewCenter(container.NewGridWrap(fyne.NewSize(56, 56), container.NewMax(circle, container.NewCenter(play))))
-		return container.NewMax(box, overlay, newTapArea(onTap))
+		return container.NewMax(box, overlay, NewTapArea(onTap))
 	}
-	return container.NewMax(box, newTapArea(onTap))
+	return container.NewMax(box, NewTapArea(onTap))
 }
 
 func (cv *ChatView) audioBlock() fyne.CanvasObject {
@@ -571,19 +600,21 @@ func (cv *ChatView) documentBlock(m store.DecodedMessage) fyne.CanvasObject {
 	bubble := newDocumentBubble(mediaBubbleData{Kind: mediaKindDocument, FileName: name, SizeLabel: "Document"})
 	msgID := m.Info.ID
 	chatID := cv.jid
-	tap := newTapArea(func() {
+	tap := NewTapArea(func() {
 		go func() {
-			if cv.fa == nil || cv.fa.api == nil { return }
-			path, err := cv.fa.api.SaveMediaToDownloads(chatID, msgID)
+			if cv.fa == nil || cv.fa.API() == nil {
+				return
+			}
+			path, err := cv.fa.API().SaveMediaToDownloads(chatID, msgID)
 			if err != nil {
 				log.Println("save media:", err)
-				fyne.Do(func() { dialog.ShowError(fmt.Errorf("download failed: %w", err), cv.fa.win) })
+				fyne.Do(func() { dialog.ShowError(fmt.Errorf("download failed: %w", err), cv.fa.Win()) })
 				return
 			}
 			if u, err := url.Parse("file:///" + strings.ReplaceAll(path, "\\", "/")); err == nil {
 				_ = fyne.CurrentApp().OpenURL(u)
 			}
-			fyne.Do(func() { dialog.ShowInformation("Downloaded", "Saved: "+path, cv.fa.win) })
+			fyne.Do(func() { dialog.ShowInformation("Downloaded", "Saved: "+path, cv.fa.Win()) })
 		}()
 	})
 	return container.NewMax(bubble, tap)
@@ -632,7 +663,7 @@ func messageText(m store.DecodedMessage) string {
 // unsupportedText matches MessageItem.tsx's fallback for content types the UI
 // cannot render (senderKeyDistribution, protocol messages, empty rows).
 func unsupportedText() fyne.CanvasObject {
-	t := canvas.NewText("Unsupported Message Type", waMuted)
+	t := canvas.NewText("Unsupported Message Type", theme.WaMuted)
 	t.TextSize = 12
 	t.TextStyle = fyne.TextStyle{Italic: true}
 	return t
@@ -641,7 +672,7 @@ func unsupportedText() fyne.CanvasObject {
 func senderLabel(m store.DecodedMessage) string {
 	name := strings.TrimSpace(m.Info.PushName)
 	if name == "" {
-		name = shortSender(m.Info.Sender)
+		name = utils.ShortSender(m.Info.Sender)
 	}
 	if name == "" {
 		name = "Unknown"
@@ -650,10 +681,10 @@ func senderLabel(m store.DecodedMessage) string {
 }
 
 func daySeparator(label string) fyne.CanvasObject {
-	t := canvas.NewText(label, waMuted)
+	t := canvas.NewText(label, theme.WaMuted)
 	t.TextSize = 11
 	t.TextStyle = fyne.TextStyle{Bold: true}
-	bg := canvas.NewRectangle(waPanel2)
+	bg := canvas.NewRectangle(theme.WaPanel2)
 	bg.CornerRadius = 8
 	box := container.NewMax(bg, container.NewPadded(t))
 	return container.NewCenter(container.NewPadded(box))
@@ -665,17 +696,21 @@ func (cv *ChatView) sendText(text string) {
 		return
 	}
 	go func() {
-		if _, err := cv.fa.api.SendMessage(cv.jid, api.MessageContent{Type: "text", Text: text}); err != nil {
-			if !cv.fa.api.IsWaConnected() {
-				fyne.Do(func(){ dialog.ShowInformation("Menghubungkan", "Menunggu WhatsApp terhubung, tunggu dulu...", cv.fa.win) })
+		if _, err := cv.fa.API().SendMessage(cv.jid, api.MessageContent{Type: "text", Text: text}); err != nil {
+			if !cv.fa.API().IsWaConnected() {
+				fyne.Do(func() {
+					dialog.ShowInformation("Menghubungkan", "Menunggu WhatsApp terhubung, tunggu dulu...", cv.fa.Win())
+				})
 				return
 			}
 			log.Println("SendMessage:", err)
-			fyne.Do(func() { msg := err.Error()
-			if strings.Contains(msg, "websocket not connected") || strings.Contains(msg, "not connected") || strings.Contains(msg, "usync") {
-				msg = "WhatsApp belum terhubung. Tunggu koneksi, lalu kirim lagi."
-			}
-			dialog.ShowError(errors.New("send failed: "+msg), cv.fa.win) })
+			fyne.Do(func() {
+				msg := err.Error()
+				if strings.Contains(msg, "websocket not connected") || strings.Contains(msg, "not connected") || strings.Contains(msg, "usync") {
+					msg = "WhatsApp belum terhubung. Tunggu koneksi, lalu kirim lagi."
+				}
+				dialog.ShowError(errors.New("send failed: "+msg), cv.fa.Win())
+			})
 			return
 		}
 		cv.appendLatest()
@@ -685,8 +720,8 @@ func (cv *ChatView) sendText(text string) {
 func (cv *ChatView) Content() fyne.CanvasObject {
 	header := cv.header
 
-	cv.scroll = container.NewVScroll(container.New(&padLayout{h: 0, v: 6}, cv.messages))
-	chatBody := container.NewMax(chatBackground(fyne.NewSize(0, 0)), cv.scroll)
+	cv.scroll = container.NewVScroll(container.New(&utils.PadLayout{H: 0, V: 6}, cv.messages))
+	chatBody := container.NewMax(ChatBackground(fyne.NewSize(0, 0)), cv.scroll)
 
 	onEmoji := func() {
 		if cv.entry != nil {
@@ -702,16 +737,16 @@ func (cv *ChatView) Content() fyne.CanvasObject {
 			_ = reader.Close()
 			if path != "" {
 				log.Println("composer attach selected:", path)
-				dialog.ShowInformation("Attachment", fmt.Sprintf("Selected: %s\nAttachment sending is coming soon.", path), cv.fa.win)
+				dialog.ShowInformation("Attachment", fmt.Sprintf("Selected: %s\nAttachment sending is coming soon.", path), cv.fa.Win())
 			}
-		}, cv.fa.win)
+		}, cv.fa.Win())
 	}
 	onPasteImage := func(pngData []byte) {
 		go cv.sendClipboardImage(pngData)
 	}
 	comp, entry := newComposer(func(s string) { cv.sendText(s) }, onEmoji, onAttach, onPasteImage)
 	cv.entry = entry
-	footerBg := canvas.NewRectangle(waPanel)
+	footerBg := canvas.NewRectangle(theme.WaPanel)
 	footer := container.NewMax(footerBg, comp)
 
 	ph := canvas.NewRectangle(color.Transparent)
@@ -786,7 +821,7 @@ func profileColorNRGBA(jid string) color.NRGBA {
 			}
 		}
 	}
-	return waGreen
+	return theme.WaGreen
 }
 
 func (cv *ChatView) toggleInfo() {
@@ -794,13 +829,13 @@ func (cv *ChatView) toggleInfo() {
 	if cv.showInfo && cv.infoPanel == nil {
 		cv.infoPanel = newChatInfoPanel(func() { cv.toggleInfo() }, func(want bool) {
 			go func() {
-				if err := cv.fa.api.ToggleChatMute(cv.jid, want); err != nil {
+				if err := cv.fa.API().ToggleChatMute(cv.jid, want); err != nil {
 					log.Println("mute:", err)
 				}
 				cv.loadInfoData()
 			}()
 		})
-		cv.infoPanel.Set(chatInfoData{Name: cv.chatName, Subtitle: cv.jid, IsGroup: isGroupJID(cv.jid)})
+		cv.infoPanel.Set(chatInfoData{Name: cv.chatName, Subtitle: cv.jid, IsGroup: utils.IsGroupJID(cv.jid)})
 		go cv.loadInfoData()
 	}
 	cv.refreshLayout()
@@ -830,12 +865,12 @@ func (cv *ChatView) loadInfoData() {
 		return
 	}
 	jid := cv.jid
-	d := chatInfoData{Name: cv.chatName, Subtitle: jid, IsGroup: isGroupJID(jid)}
-	if m, err := cv.fa.api.IsChatMuted(jid); err == nil {
+	d := chatInfoData{Name: cv.chatName, Subtitle: jid, IsGroup: utils.IsGroupJID(jid)}
+	if m, err := cv.fa.API().IsChatMuted(jid); err == nil {
 		d.Muted = m
 	}
 	if d.IsGroup {
-		if gi, err := cv.fa.api.GetGroupInfo(jid); err == nil {
+		if gi, err := cv.fa.API().GetGroupInfo(jid); err == nil {
 			if strings.TrimSpace(gi.GroupName) != "" {
 				d.Name = gi.GroupName
 			}
@@ -858,7 +893,7 @@ func (cv *ChatView) loadInfoData() {
 			}
 		}
 	} else if parsed, err := types.ParseJID(jid); err == nil {
-		if c, err := cv.fa.api.GetContact(parsed); err == nil && c != nil {
+		if c, err := cv.fa.API().GetContact(parsed); err == nil && c != nil {
 			if n := strings.TrimSpace(c.FullName); n != "" {
 				d.Name = n
 			} else if n := strings.TrimSpace(c.PushName); n != "" {
@@ -869,7 +904,7 @@ func (cv *ChatView) loadInfoData() {
 			}
 		}
 	}
-	if url, err := cv.fa.api.GetCachedAvatar(jid, false); err == nil && url != "" {
+	if url, err := cv.fa.API().GetCachedAvatar(jid, false); err == nil && url != "" {
 		d.Avatar = dataURLResource(jid, url)
 	}
 	fyne.Do(func() {
@@ -880,19 +915,26 @@ func (cv *ChatView) loadInfoData() {
 }
 
 func (cv *ChatView) sendClipboardImage(pngData []byte) {
-	if cv.fa == nil || cv.fa.api == nil || len(pngData) == 0 {
+	if cv.fa == nil || cv.fa.API() == nil || len(pngData) == 0 {
 		return
 	}
 	b64 := base64.StdEncoding.EncodeToString(pngData)
-	_, err := cv.fa.api.SendMessage(cv.jid, api.MessageContent{
+	_, err := cv.fa.API().SendMessage(cv.jid, api.MessageContent{
 		Type:       "image",
 		Base64Data: b64,
 		Mimetype:   "image/png",
 	})
 	if err != nil {
 		log.Println("send clipboard image:", err)
-		fyne.Do(func() { dialog.ShowError(fmt.Errorf("send image failed: %w", err), cv.fa.win) })
+		fyne.Do(func() { dialog.ShowError(fmt.Errorf("send image failed: %w", err), cv.fa.Win()) })
 		return
 	}
 	cv.appendLatest()
+}
+
+// Cancel stops the chat view's background message/presence loops.
+func (cv *ChatView) Cancel() {
+	if cv.cancel != nil {
+		cv.cancel()
+	}
 }

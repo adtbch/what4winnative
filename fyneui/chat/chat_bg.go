@@ -1,4 +1,4 @@
-package fyneui
+package chat
 
 import (
 	"image"
@@ -8,11 +8,12 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"github.com/lugvitc/whats4linux/fyneui/theme"
 )
 
 // chatBackground returns WA-like dark chat bg with subtle doodle pattern.
-func chatBackground(_ fyne.Size) fyne.CanvasObject {
-	base := canvas.NewRectangle(waBg)
+func ChatBackground(_ fyne.Size) fyne.CanvasObject {
+	base := canvas.NewRectangle(theme.WaBg)
 	pat := canvas.NewImageFromImage(makeDoodleTile(240, 240))
 	pat.FillMode = canvas.ImageFillStretch
 	pat.Translucency = 0

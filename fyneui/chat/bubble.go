@@ -1,4 +1,4 @@
-package fyneui
+package chat
 
 import (
 	"image/color"
@@ -9,6 +9,8 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
+	"github.com/lugvitc/whats4linux/fyneui/theme"
+	"github.com/lugvitc/whats4linux/fyneui/utils"
 )
 
 // bubbleData carries everything MessageItem.tsx needs to render a text bubble.
@@ -26,18 +28,17 @@ type bubbleData struct {
 	MaxWidth     float32
 }
 
-// bubbleBg returns waSent/waRecv; bubbleCorner returns the 2px sharp corner
+// bubbleBg returns theme.WaSent/theme.WaRecv; bubbleCorner returns the 2px sharp corner
 // that faces the sender on the first bubble of a run (rounded-tl-sm /
 // rounded-tr-sm in MessageItem.tsx:445-446; every other corner stays 12px).
 func bubbleBg(fromMe bool) color.Color {
 	if fromMe {
-		return waSent
+		return theme.WaSent
 	}
-	return waRecv
+	return theme.WaRecv
 }
 
 func bubbleCorner(fromMe, firstInGroup bool) float32 { return 4 }
-
 
 // emojiOnlyText mirrors the stripped+EMOJI_ONLY_RE test in MessageItem.tsx:272-277.
 func emojiOnlyText(text string) bool {
@@ -86,14 +87,14 @@ func newBubble(d bubbleData) *bubble {
 	src := strings.TrimSpace(d.Text)
 	switch {
 	case src == "":
-		t := canvas.NewText("Empty Message", waMuted)
+		t := canvas.NewText("Empty Message", theme.WaMuted)
 		t.TextSize = 14
 		t.TextStyle = fyne.TextStyle{Italic: true}
-		b.blk = wrapFixed(t, inner, 19)
+		b.blk = utils.WrapFixed(t, inner, 19)
 	case d.EmojiOnly:
-		t := canvas.NewText(htmlToText(src), waText)
+		t := canvas.NewText(htmlToText(src), theme.WaText)
 		t.TextSize = 32
-		b.blk = wrapFixed(t, inner, 40)
+		b.blk = utils.WrapFixed(t, inner, 40)
 	default:
 		b.blk = htmlBubble(src, inner, 14)
 	}
@@ -112,14 +113,14 @@ func htmlBubble(src string, maxW, size float32) fyne.CanvasObject {
 
 // htmlBubbleSized is the shared RichText path for text bubbles and captions:
 // pre-wrap at maxW, give RichText back its 2*innerPadding so it never
-// re-wraps early, then pin the cell with wrapFixed/GridWrap.
+// re-wraps early, then pin the cell with utils.WrapFixed/GridWrap.
 func htmlBubbleSized(src string, maxW, size float32) fyne.CanvasObject {
 	inner := maxW
 	if inner < 60 {
 		inner = 60
 	}
 	if strings.TrimSpace(htmlToText(src)) == "" {
-		return canvas.NewText(" ", waText)
+		return canvas.NewText(" ", theme.WaText)
 	}
 	box, w, h := htmlTextBlock(src, inner, size)
 	if w < 24 {

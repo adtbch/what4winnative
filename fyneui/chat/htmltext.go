@@ -1,9 +1,9 @@
-package fyneui
+package chat
 
 import (
-	"net/url"
 	"encoding/base64"
 	"html"
+	"net/url"
 	"regexp"
 	"strings"
 
@@ -57,7 +57,7 @@ func htmlToText(s string) string {
 }
 
 // htmlPreview flattens to a single line for the chat list.
-func htmlPreview(s string) string {
+func HtmlPreview(s string) string {
 	t := htmlToText(s)
 	t = strings.ReplaceAll(t, "\n", " ")
 	return strings.TrimSpace(t)

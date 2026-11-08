@@ -289,7 +289,6 @@ func abs(v int) int {
 	return v
 }
 
-
 // --- numeric ink/card bbox evidence (#6): Fyne render vs React DOM spec ---
 // React measured (static harness, MessageItem.tsx classes/tokens):
 //   sent  card #144d37 178x53 rel(306,16) tl12 tr4 pad 4 8 6, body 14/20, meta 11 tick #53bdeb
@@ -302,12 +301,35 @@ func dominantCardBBox(img image.Image, want color.NRGBA, tol int) (x0, y0, x1, y
 	for y := b.Min.Y; y < b.Max.Y; y++ {
 		for x := b.Min.X; x < b.Max.X; x++ {
 			r, g, bb, _ := img.At(x, y).RGBA()
-			dr := int(uint8(r>>8)) - int(want.R); dg := int(uint8(g>>8)) - int(want.G); db := int(uint8(bb>>8)) - int(want.B)
-			if dr < 0 { dr = -dr }; if dg < 0 { dg = -dg }; if db < 0 { db = -db }
+			dr := int(uint8(r>>8)) - int(want.R)
+			dg := int(uint8(g>>8)) - int(want.G)
+			db := int(uint8(bb>>8)) - int(want.B)
+			if dr < 0 {
+				dr = -dr
+			}
+			if dg < 0 {
+				dg = -dg
+			}
+			if db < 0 {
+				db = -db
+			}
 			if dr+dg+db <= tol {
 				n++
-				if first { x0, y0, x1, y1, first = x, y, x, y, false }
-				if x < x0 { x0 = x }; if y < y0 { y0 = y }; if x > x1 { x1 = x }; if y > y1 { y1 = y }
+				if first {
+					x0, y0, x1, y1, first = x, y, x, y, false
+				}
+				if x < x0 {
+					x0 = x
+				}
+				if y < y0 {
+					y0 = y
+				}
+				if x > x1 {
+					x1 = x
+				}
+				if y > y1 {
+					y1 = y
+				}
 			}
 		}
 	}
@@ -315,18 +337,41 @@ func dominantCardBBox(img image.Image, want color.NRGBA, tol int) (x0, y0, x1, y
 }
 
 func brightInkHeight(img image.Image, card color.NRGBA) int {
-	b := img.Bounds(); ymin, ymax := b.Max.Y, b.Min.Y
+	b := img.Bounds()
+	ymin, ymax := b.Max.Y, b.Min.Y
 	for y := b.Min.Y; y < b.Max.Y; y++ {
 		for x := b.Min.X; x < b.Max.X; x++ {
 			r, g, bb, _ := img.At(x, y).RGBA()
 			R, G, B := int(r>>8), int(g>>8), int(bb>>8)
-			dr := R - int(card.R); dg := G - int(card.G); db := B - int(card.B)
-			if dr < 0 { dr = -dr }; if dg < 0 { dg = -dg }; if db < 0 { db = -db }
-			if dr+dg+db <= 35 { continue }
-			if R+G+B > 260 { if y < ymin { ymin = y }; if y > ymax { ymax = y } }
+			dr := R - int(card.R)
+			dg := G - int(card.G)
+			db := B - int(card.B)
+			if dr < 0 {
+				dr = -dr
+			}
+			if dg < 0 {
+				dg = -dg
+			}
+			if db < 0 {
+				db = -db
+			}
+			if dr+dg+db <= 35 {
+				continue
+			}
+			if R+G+B > 260 {
+				if y < ymin {
+					ymin = y
+				}
+				if y > ymax {
+					ymax = y
+				}
+			}
 		}
 	}
-	if ymax < ymin { return 0 }; return ymax - ymin
+	if ymax < ymin {
+		return 0
+	}
+	return ymax - ymin
 }
 
 func TestBubbleParityNumericBBox(t *testing.T) {
@@ -336,14 +381,20 @@ func TestBubbleParityNumericBBox(t *testing.T) {
 	}
 	sent := renderPNG(t, "bbox_sent", cv.bubble(mk("bs", "halo bro apa kabar hari ini", true), true), fyne.NewSize(520, 220))
 	sx0, sy0, sx1, sy1, sn := dominantCardBBox(sent, hexNRGBA("#144d37"), 35)
-	if sn < 600 || sx1-sx0 < 60 || sy1-sy0 < 24 { t.Fatalf("sent card bbox weak: n=%d bbox=%d,%d..%d,%d (React 178x53 rel306,16)", sn, sx0, sy0, sx1, sy1) }
+	if sn < 600 || sx1-sx0 < 60 || sy1-sy0 < 24 {
+		t.Fatalf("sent card bbox weak: n=%d bbox=%d,%d..%d,%d (React 178x53 rel306,16)", sn, sx0, sy0, sx1, sy1)
+	}
 	recv := renderPNG(t, "bbox_recv", cv.bubble(mk("br", "halo bro apa kabar hari ini", false), true), fyne.NewSize(520, 220))
 	_, _, rx1, ry1, rn := dominantCardBBox(recv, hexNRGBA("#242626"), 35)
-	if rn < 600 || rx1 < 60 || ry1 < 24 { t.Fatalf("recv card bbox weak: n=%d (React 178x53 rel36,16)", rn) }
+	if rn < 600 || rx1 < 60 || ry1 < 24 {
+		t.Fatalf("recv card bbox weak: n=%d (React 178x53 rel36,16)", rn)
+	}
 	plain := renderPNG(t, "bbox_plain", cv.bubble(mk("bp", "halo", true), true), fyne.NewSize(520, 220))
 	emoji := renderPNG(t, "bbox_emoji", cv.bubble(mk("be", "😂😂😂", true), true), fyne.NewSize(520, 220))
 	ph, eh := brightInkHeight(plain, hexNRGBA("#144d37")), brightInkHeight(emoji, hexNRGBA("#144d37"))
-	if ph == 0 || eh <= ph { t.Fatalf("emoji body ink not larger than plain (React body 30/40 vs 14/20): plainH=%d emojiH=%d", ph, eh) }
+	if ph == 0 || eh <= ph {
+		t.Fatalf("emoji body ink not larger than plain (React body 30/40 vs 14/20): plainH=%d emojiH=%d", ph, eh)
+	}
 }
 
 func TestBubbleParityGroupSender(t *testing.T) {
@@ -351,5 +402,7 @@ func TestBubbleParityGroupSender(t *testing.T) {
 	m := store.DecodedMessage{Info: store.DecodedMessageInfo{ID: "g1", IsFromMe: false, Sender: "6281@s.whatsapp.net", Timestamp: "2025-07-11T10:05:00Z"}, Content: &store.DecodedMessageContent{Conversation: "halo grup"}}
 	img := renderPNG(t, "bbox_group", cv.bubble(m, true), fyne.NewSize(520, 260))
 	_, _, _, _, n := dominantCardBBox(img, hexNRGBA("#242626"), 35)
-	if n < 600 { t.Fatalf("group recv card weak n=%d (React 178x73 rel64,16 + sender)", n) }
+	if n < 600 {
+		t.Fatalf("group recv card weak n=%d (React 178x73 rel64,16 + sender)", n)
+	}
 }

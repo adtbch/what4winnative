@@ -1,4 +1,4 @@
-package fyneui
+package sidebar
 
 import (
 	"image/color"
@@ -7,6 +7,8 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
+	"github.com/lugvitc/whats4linux/fyneui/theme"
+	"github.com/lugvitc/whats4linux/fyneui/utils"
 )
 
 // SearchBar from ChatScreen.tsx:78-95. Measured in headless Chrome:
@@ -46,9 +48,9 @@ type searchBar struct {
 func newSearchBar(placeholder string, onChange func(string)) *searchBar {
 	s := &searchBar{placeholder: placeholder, onChange: onChange}
 
-	s.bg = canvas.NewRectangle(waPanel2)
+	s.bg = canvas.NewRectangle(theme.WaPanel2)
 	s.bg.CornerRadius = searchPillH / 2
-	s.icon = iconImage("search-bar-icon", iconSearch, searchIconSize, iconSearchMuted)
+	s.icon = utils.IconImage("search-bar-icon", utils.IconSearch, searchIconSize, iconSearchMuted)
 
 	s.entry = widget.NewEntry()
 	s.entry.SetPlaceHolder(placeholder)
@@ -63,7 +65,7 @@ func newSearchBar(placeholder string, onChange func(string)) *searchBar {
 	}
 	// The pill (s.bg) owns the chrome. Strip Entry's own InputBackground/border/focus
 	// so the typed text and hit area stay in sync with the pill, not a second box.
-	s.entryChrome = container.NewThemeOverride(s.entry, &borderlessEntryTheme{Theme: fyne.CurrentApp().Settings().Theme(), bg: color.Transparent})
+	s.entryChrome = container.NewThemeOverride(s.entry, &theme.BorderlessEntryTheme{Theme: fyne.CurrentApp().Settings().Theme()})
 	s.ExtendBaseWidget(s)
 	return s
 }
@@ -130,7 +132,7 @@ func (r *searchBarRenderer) MinSize() fyne.Size {
 }
 
 func (r *searchBarRenderer) Refresh() {
-	r.s.bg.FillColor = waPanel2
+	r.s.bg.FillColor = theme.WaPanel2
 	r.s.bg.Refresh()
 	canvas.Refresh(r.s)
 }

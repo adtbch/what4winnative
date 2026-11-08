@@ -1,4 +1,4 @@
-package fyneui
+package theme
 
 import (
 	"image/color"
@@ -7,61 +7,64 @@ import (
 	"fyne.io/fyne/v2/theme"
 )
 
-// waTheme forces Fyne's widget palette onto the WhatsApp dark scheme. Without
+// WaTheme forces Fyne's widget palette onto the WhatsApp dark scheme. Without
 // it RichText/Entry resolve foreground against the default (light) theme and
 // dark text lands on the dark bubbles.
-type waTheme struct {
+type WaTheme struct {
 	base fyne.Theme
 }
 
-func newWATheme() fyne.Theme {
-	return &waTheme{base: theme.DefaultTheme()}
+func NewWATheme() fyne.Theme {
+	return &WaTheme{base: theme.DefaultTheme()}
 }
 
-func (t *waTheme) Color(name fyne.ThemeColorName, _ fyne.ThemeVariant) color.Color {
+func (t *WaTheme) Color(name fyne.ThemeColorName, _ fyne.ThemeVariant) color.Color {
 	switch name {
 	case theme.ColorNameForeground, theme.ColorNamePrimary:
-		return waText
+		return WaText
 	case theme.ColorNameHyperlink:
-		return waLink
+		return WaLink
 	case theme.ColorNameBackground:
-		return waPanel
+		return WaPanel
 	case theme.ColorNameOverlayBackground, theme.ColorNameMenuBackground:
-		return waPanel
+		return WaPanel
 	case theme.ColorNameInputBackground:
-		return waPanel2
+		return WaPanel2
 	case theme.ColorNameInputBorder:
 		// WhatsApp has no visible outline around the composer field; Fyne draws
 		// a 1px rect here, so match the fill exactly to make it disappear.
-		return waPanel2
+		return WaPanel2
 	case theme.ColorNamePlaceHolder, theme.ColorNameDisabled:
-		return waMuted
+		return WaMuted
 	case theme.ColorNameButton:
-		return waPanel2
+		return WaPanel2
 	case theme.ColorNameSeparator:
-		return waDivider
+		return WaDivider
 	case theme.ColorNameHover, theme.ColorNameFocus, theme.ColorNameSelection:
-		return waHover
+		return WaHover
 	case theme.ColorNamePressed:
-		return waRailSel
+		return WaRailSel
 	case theme.ColorNameForegroundOnPrimary:
-		return waWhite
+		return WaWhite
 	case theme.ColorNameScrollBar:
 		return color.NRGBA{R: 0x37, G: 0x44, B: 0x4c, A: 200}
 	}
 	return t.base.Color(name, theme.VariantDark)
 }
 
-func (t *waTheme) Font(style fyne.TextStyle) fyne.Resource { return t.base.Font(style) }
+func (t *WaTheme) Font(style fyne.TextStyle) fyne.Resource { return t.base.Font(style) }
 
-func (t *waTheme) Icon(name fyne.ThemeIconName) fyne.Resource { return t.base.Icon(name) }
+func (t *WaTheme) Icon(name fyne.ThemeIconName) fyne.Resource { return t.base.Icon(name) }
 
-func (t *waTheme) Size(name fyne.ThemeSizeName) float32 { return t.base.Size(name) }
+func (t *WaTheme) Size(name fyne.ThemeSizeName) float32 { return t.base.Size(name) }
 
-// borderlessEntryTheme makes widget.Entry blend into a custom pill/card.
-type borderlessEntryTheme struct{ fyne.Theme; bg color.Color }
+// BorderlessEntryTheme makes widget.Entry blend into a custom pill/card.
+type BorderlessEntryTheme struct {
+	fyne.Theme
+	bg color.Color
+}
 
-func (t *borderlessEntryTheme) Color(n fyne.ThemeColorName, v fyne.ThemeVariant) color.Color {
+func (t *BorderlessEntryTheme) Color(n fyne.ThemeColorName, v fyne.ThemeVariant) color.Color {
 	switch n {
 	case theme.ColorNameInputBorder, theme.ColorNameInputBackground:
 		return t.bg

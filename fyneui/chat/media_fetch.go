@@ -1,4 +1,4 @@
-package fyneui
+package chat
 
 import (
 	"log"
@@ -45,7 +45,7 @@ func startMediaFetchers() {
 }
 
 func enqueueMediaFetch(cv *ChatView, chatID, msgID string, kind int, img *canvas.Image, box fyne.CanvasObject) {
-	if cv == nil || cv.fa == nil || cv.fa.api == nil || msgID == "" || img == nil {
+	if cv == nil || cv.fa == nil || cv.fa.API() == nil || msgID == "" || img == nil {
 		return
 	}
 	mediaFetchFailMu.Lock()
@@ -75,7 +75,7 @@ func mediaFetchWorker() {
 				return
 			}
 			var dataURL string
-			api := job.cv.fa.api
+			api := job.cv.fa.API()
 			if job.kind == mediaKindVideo {
 				dataURL = api.GetVideoThumbnail(job.msgID)
 			} else {

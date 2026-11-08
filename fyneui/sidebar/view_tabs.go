@@ -1,4 +1,4 @@
-package fyneui
+package sidebar
 
 import (
 	"image/color"
@@ -8,6 +8,8 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/widget"
+	"github.com/lugvitc/whats4linux/fyneui/theme"
+	"github.com/lugvitc/whats4linux/fyneui/utils"
 )
 
 // Geometry measured from the React harness (getComputedStyle + rect):
@@ -144,7 +146,7 @@ func (l *viewTabsBarLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
 func (l *viewTabsBarLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 	for _, o := range objects {
 		o.Move(fyne.NewPos(viewTabBarPadX, viewTabBarPadT))
-		o.Resize(fyne.NewSize(maxF(size.Width-viewTabBarPadX*2, 0), viewTabHeight))
+		o.Resize(fyne.NewSize(utils.MaxF(size.Width-viewTabBarPadX*2, 0), viewTabHeight))
 	}
 }
 
@@ -179,20 +181,20 @@ func (p *viewTabPill) applyStyle() {
 		return
 	}
 	if p.active {
-		p.bg.FillColor = waPillOn
+		p.bg.FillColor = theme.WaPillOn
 		p.bg.Show()
 		p.border.Hide()
-		p.text.Color = waPillOnText
+		p.text.Color = theme.WaPillOnText
 		p.text.TextStyle = fyne.TextStyle{Bold: true}
 	} else {
 		p.bg.FillColor = color.Transparent
-		p.border.StrokeColor = waPillBorder
+		p.border.StrokeColor = theme.WaPillBorder
 		// Fyne centres the stroke on the rect edge, so a 1px stroke lands on a
 		// half-pixel boundary and antialiases into two rows at half alpha. A 2px
 		// stroke reproduces React's solid 1px border at this DPR.
 		p.border.StrokeWidth = 2
 		p.border.Show()
-		p.text.Color = waMuted
+		p.text.Color = theme.WaMuted
 		p.text.TextStyle = fyne.TextStyle{}
 	}
 	p.bg.Refresh()
@@ -201,16 +203,16 @@ func (p *viewTabPill) applyStyle() {
 }
 
 func (p *viewTabPill) CreateRenderer() fyne.WidgetRenderer {
-	p.bg = canvas.NewRectangle(waPillOn)
+	p.bg = canvas.NewRectangle(theme.WaPillOn)
 	p.bg.CornerRadius = viewTabHeight / 2
 	p.border = canvas.NewRectangle(color.Transparent)
 	p.border.CornerRadius = viewTabHeight / 2
-	p.text = canvas.NewText(capitalizeWords(p.label), waPillOnText)
+	p.text = canvas.NewText(capitalizeWords(p.label), theme.WaPillOnText)
 	p.text.TextSize = viewTabFontSize
 	p.text.Alignment = fyne.TextAlignCenter
 	p.applyStyle()
 
-	inner := container.New(&padLayout{h: viewTabPadX, v: viewTabPadY},
+	inner := container.New(&utils.PadLayout{H: viewTabPadX, V: viewTabPadY},
 		container.NewCenter(p.text))
 	return widget.NewSimpleRenderer(container.NewMax(p.bg, p.border, inner))
 }

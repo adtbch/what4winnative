@@ -14,22 +14,34 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/lugvitc/whats4linux/api"
+
+	"github.com/lugvitc/whats4linux/fyneui/chat"
+	"github.com/lugvitc/whats4linux/fyneui/login"
+	"github.com/lugvitc/whats4linux/fyneui/settings"
+	"github.com/lugvitc/whats4linux/fyneui/sidebar"
+	"github.com/lugvitc/whats4linux/fyneui/theme"
+	"github.com/lugvitc/whats4linux/fyneui/utils"
 )
 
 type FyneApp struct {
-	currentCV *ChatView
-	app    fyne.App
-	win    fyne.Window
-	api    *api.Api
-	ctx    context.Context
-	cancel context.CancelFunc
-	state  *AppState
-	stack  *fyne.Container
+	currentCV *chat.ChatView
+	app       fyne.App
+	win       fyne.Window
+	api       *api.Api
+	ctx       context.Context
+	cancel    context.CancelFunc
+	state     *utils.AppState
+	stack     *fyne.Container
 
-	sidebar  *Sidebar
+	sidebar  *sidebar.Sidebar
 	chatPane *fyne.Container
 	shell    fyne.CanvasObject
 }
+
+func (fa *FyneApp) API() *api.Api          { return fa.api }
+func (fa *FyneApp) Ctx() context.Context   { return fa.ctx }
+func (fa *FyneApp) Win() fyne.Window       { return fa.win }
+func (fa *FyneApp) State() *utils.AppState { return fa.state }
 
 func New(a *api.Api) *FyneApp {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -38,32 +50,28 @@ func New(a *api.Api) *FyneApp {
 		api:    a,
 		ctx:    ctx,
 		cancel: cancel,
-		state:  &AppState{api: a, Screen: "login"},
+		state:  utils.NewAppState(a),
 	}
 	fa.win = fa.app.NewWindow("WhatsApp")
-	fa.app.Settings().SetTheme(newWATheme())
+	fa.app.Settings().SetTheme(theme.NewWATheme())
 	fa.win.Resize(fyne.NewSize(1360, 860))
-	fa.stack = container.NewMax(canvas.NewRectangle(waBg), widget.NewLabel("Loading..."))
+	fa.stack = container.NewMax(canvas.NewRectangle(theme.WaBg), widget.NewLabel("Loading..."))
 	fa.win.SetContent(fa.stack)
-    // Show login (QR) immediately; connection will be established after scanning
-    fyne.Do(func(){ fa.ShowLogin() })
-    // Wait for WhatsApp WebSocket connection before showing UI
-    go func() {
-        // poll until connected
-        for !fa.api.IsWaConnected() {
-            time.Sleep(200 * time.Millisecond)
-        }
-        // Once connected, show login screen
-        fyne.Do(func() { fa.ShowLogin() })
-    }()
+	fyne.Do(func() { fa.ShowLogin() })
+	go func() {
+		for !fa.api.IsWaConnected() {
+			time.Sleep(200 * time.Millisecond)
+		}
+		fyne.Do(func() { fa.ShowLogin() })
+	}()
 	return fa
 }
 
 func (fa *FyneApp) ShowLogin() {
-	fa.state.SetScreen("login")
-	login := NewLoginScreen(fa)
+	fa.State().SetScreen("login")
+	loginScreen := login.NewLoginScreen(fa)
 	fyne.Do(func() {
-		fa.stack.Objects = []fyne.CanvasObject{login.Content()}
+		fa.stack.Objects = []fyne.CanvasObject{loginScreen.Content()}
 		fa.stack.Refresh()
 	})
 }
@@ -72,12 +80,12 @@ func (fa *FyneApp) OpenChat(jid string) {
 	if jid == "" {
 		return
 	}
-	fa.state.SetSelectedChatID(jid)
+	fa.State().SetSelectedChatID(jid)
 	old := fa.currentCV
-	cv := NewChatView(fa, jid)
+	cv := chat.NewChatView(fa, jid)
 	fa.currentCV = cv
-	if old != nil && old.cancel != nil {
-		old.cancel()
+	if old != nil {
+		old.Cancel()
 	}
 	fyne.Do(func() {
 		if fa.chatPane == nil {
@@ -89,9 +97,9 @@ func (fa *FyneApp) OpenChat(jid string) {
 }
 
 func (fa *FyneApp) OpenEmptyChat() {
-	fa.state.SetSelectedChatID("")
-	if fa.currentCV != nil && fa.currentCV.cancel != nil {
-		fa.currentCV.cancel()
+	fa.State().SetSelectedChatID("")
+	if fa.currentCV != nil {
+		fa.currentCV.Cancel()
 		fa.currentCV = nil
 	}
 	fyne.Do(func() {
@@ -104,14 +112,14 @@ func (fa *FyneApp) OpenEmptyChat() {
 }
 
 func railItem(path string, name string, active bool, badge int, onTap func()) fyne.CanvasObject {
-	fg := waRailIcon
+	fg := theme.WaRailIcon
 	if active {
-		fg = waText
+		fg = theme.WaText
 	}
-	icon := iconImage(name, path, 24, fg)
+	icon := utils.IconImage(name, path, 24, fg)
 	cell := container.NewMax(container.NewCenter(icon))
 	if active {
-		bg := canvas.NewRectangle(waRailSel)
+		bg := canvas.NewRectangle(theme.WaRailSel)
 		bg.CornerRadius = 999
 		cell = container.NewMax(bg, container.NewCenter(icon))
 	}
@@ -121,90 +129,89 @@ func railItem(path string, name string, active bool, badge int, onTap func()) fy
 		if badge > 99 {
 			btxt = "99+"
 		}
-		bt := canvas.NewText(btxt, waWhite)
+		bt := canvas.NewText(btxt, theme.WaWhite)
 		bt.TextSize = 9
 		bt.TextStyle = fyne.TextStyle{Bold: true}
 		bt.Alignment = fyne.TextAlignCenter
-		bbg := canvas.NewCircle(waGreen)
+		bbg := canvas.NewCircle(theme.WaGreen)
 		badgeObj := container.NewGridWrap(fyne.NewSize(18, 18), container.NewMax(bbg, container.NewCenter(bt)))
 		wrap = container.NewMax(wrap, container.NewWithoutLayout(badgeObj))
 	}
 	if onTap != nil {
-		ta := &tapArea{onTap: onTap}
-		ta.ExtendBaseWidget(ta)
+		ta := chat.NewTapArea(onTap)
 		wrap = container.NewMax(wrap, ta)
 	}
 	return wrap
 }
 
 func railAvatar() fyne.CanvasObject {
-	bg := canvas.NewCircle(waHover)
-	icon := iconImage("rail-avatar", iconPerson, 26, waRailIcon)
+	bg := canvas.NewCircle(theme.WaHover)
+	icon := utils.IconImage("rail-avatar", utils.IconPerson, 26, theme.WaRailIcon)
 	return container.NewGridWrap(fyne.NewSize(34, 34), container.NewMax(bg, container.NewCenter(icon)))
 }
 
 func (fa *FyneApp) rail() fyne.CanvasObject {
-	railBg := canvas.NewRectangle(waRail)
+	railBg := canvas.NewRectangle(theme.WaRail)
 	top := container.NewVBox(
-		spacer(1, 10),
-		container.NewCenter(railItem(iconChats, "rail-chats", true, 0, nil)),
-		spacer(1, 2),
-		container.NewCenter(railItem(iconStatus, "rail-status", false, 0, nil)),
-		spacer(1, 2),
-		container.NewCenter(railItem(iconChannels, "rail-channels", false, 0, nil)),
-		spacer(1, 2),
-		container.NewCenter(railItem(iconCommunities, "rail-communities", false, 0, nil)),
+		utils.Spacer(1, 10),
+		container.NewCenter(railItem(utils.IconChats, "rail-chats", true, 0, nil)),
+		utils.Spacer(1, 2),
+		container.NewCenter(railItem(utils.IconStatus, "rail-status", false, 0, nil)),
+		utils.Spacer(1, 2),
+		container.NewCenter(railItem(utils.IconChannels, "rail-channels", false, 0, nil)),
+		utils.Spacer(1, 2),
+		container.NewCenter(railItem(utils.IconCommunities, "rail-communities", false, 0, nil)),
 	)
 	bottom := container.NewVBox(
-		container.NewCenter(railItem(iconSettings, "rail-settings", false, 0, func() { fa.OpenSettings() })),
-		spacer(1, 10),
+		container.NewCenter(railItem(utils.IconSettings, "rail-settings", false, 0, func() { fa.OpenSettings() })),
+		utils.Spacer(1, 10),
 		container.NewCenter(railAvatar()),
-		spacer(1, 12),
+		utils.Spacer(1, 12),
 	)
 	inner := container.NewBorder(top, bottom, nil, nil, canvas.NewRectangle(color.Transparent))
 	return container.NewMax(railBg, inner)
 }
 
 func (fa *FyneApp) emptyPane() fyne.CanvasObject {
-	bg := chatBackground(fyne.NewSize(0, 0))
-	logo := canvas.NewCircle(waPanel2)
-	logoTxt := canvas.NewText("WA", waAccent)
+	bg := chat.ChatBackground(fyne.NewSize(0, 0))
+	logo := canvas.NewCircle(theme.WaPanel2)
+	logoTxt := canvas.NewText("WA", theme.WaAccent)
 	logoTxt.TextSize = 24
 	logoTxt.TextStyle = fyne.TextStyle{Bold: true}
 	logoTxt.Alignment = fyne.TextAlignCenter
 	logoObj := container.NewGridWrap(fyne.NewSize(84, 84), container.NewMax(logo, container.NewCenter(logoTxt)))
 
-	title := canvas.NewText("WhatsApp for Linux", waText)
+	title := canvas.NewText("WhatsApp for Linux", theme.WaText)
 	title.TextSize = 32
 	title.Alignment = fyne.TextAlignCenter
-	desc := canvas.NewText("Send and receive messages without keeping your phone online.", waMuted)
+	desc := canvas.NewText("Send and receive messages without keeping your phone online.", theme.WaMuted)
 	desc.TextSize = 14
 	desc.Alignment = fyne.TextAlignCenter
-	desc2 := canvas.NewText("Use WhatsApp on up to 4 linked devices and 1 phone.", waMuted)
+	desc2 := canvas.NewText("Use WhatsApp on up to 4 linked devices and 1 phone.", theme.WaMuted)
 	desc2.TextSize = 14
 	desc2.Alignment = fyne.TextAlignCenter
 
 	download := widget.NewButton("Download", func() {})
 	download.Importance = widget.SuccessImportance
 
-	lock := canvas.NewText("🔒  Your personal messages are end-to-end encrypted", waMuted)
+	lock := canvas.NewText("🔒  Your personal messages are end-to-end encrypted", theme.WaMuted)
 	lock.TextSize = 13
 	lock.Alignment = fyne.TextAlignCenter
 
-	accent := canvas.NewRectangle(waAccent)
+	accent := canvas.NewRectangle(theme.WaAccent)
 	accent.SetMinSize(fyne.NewSize(0, 6))
 
 	content := container.NewVBox(
 		container.NewCenter(logoObj),
-		spacer(1, 24),
+		utils.Spacer(1, 24),
 		container.NewCenter(title),
-		spacer(1, 14),
+		utils.Spacer(1, 14),
 		container.NewCenter(desc),
-		spacer(1, 4),
+		utils.Spacer(1, 4),
 		container.NewCenter(desc2),
-		spacer(1, 28),
+		utils.Spacer(1, 28),
 		container.NewCenter(container.NewGridWrap(fyne.NewSize(132, 38), download)),
-		spacer(1, 70),
+		utils.Spacer(1, 70),
 		container.NewCenter(lock),
 	)
 	return container.NewBorder(nil, accent, nil, nil, container.NewMax(bg, container.NewCenter(container.NewPadded(content))))
@@ -212,7 +219,7 @@ func (fa *FyneApp) emptyPane() fyne.CanvasObject {
 
 func (fa *FyneApp) buildShell() {
 	if fa.sidebar == nil {
-		fa.sidebar = NewSidebar(fa)
+		fa.sidebar = sidebar.NewSidebar(fa)
 	} else {
 		go fa.sidebar.Reload()
 	}
@@ -220,23 +227,20 @@ func (fa *FyneApp) buildShell() {
 		fa.chatPane = container.NewMax(fa.emptyPane())
 	}
 
-	leftBody := container.NewMax(canvas.NewRectangle(waSidebarBg), fa.sidebar.Content())
-	right := container.NewMax(canvas.NewRectangle(waChatBg), fa.chatPane)
+	leftBody := container.NewMax(canvas.NewRectangle(theme.WaSidebarBg), fa.sidebar.Content())
+	right := container.NewMax(canvas.NewRectangle(theme.WaChatBg), fa.chatPane)
 
-	// React: ResizablePanel defaultSize 30%, minSize 320px, maxSize 600px.
 	split := container.New(&mainSplitLayout{leftRatio: 0.30, minLeft: 320, maxLeft: 600, minRight: 400}, leftBody, right)
-	fa.shell = container.NewMax(canvas.NewRectangle(waChatBg), split)
+	fa.shell = container.NewMax(canvas.NewRectangle(theme.WaChatBg), split)
 }
 
 func (fa *FyneApp) SwitchToChats() {
-	fa.state.SetScreen("chats")
+	fa.State().SetScreen("chats")
 	fa.buildShell()
 	fyne.Do(func() {
 		fa.stack.Objects = []fyne.CanvasObject{fa.shell}
 		fa.stack.Refresh()
 	})
-	// dev hook: auto-open a chat so the bubble rendering can be inspected
-	// without clicking (WHATS4LINUX_OPEN_JID=<jid or phone>).
 	if jid := os.Getenv("WHATS4LINUX_OPEN_JID"); jid != "" {
 		go func() {
 			time.Sleep(1500 * time.Millisecond)
@@ -254,12 +258,11 @@ func (fa *FyneApp) Run() {
 }
 
 func verticalDivider() fyne.CanvasObject {
-	line := canvas.NewRectangle(waDivider)
+	line := canvas.NewRectangle(theme.WaDivider)
 	line.SetMinSize(fyne.NewSize(1, 0))
 	return line
 }
 
-// sidebarWidthLayout forces sidebar body width while keeping rail natural.
 type sidebarWidthLayout struct {
 	width float32
 }
@@ -285,7 +288,6 @@ func (l *sidebarWidthLayout) Layout(objects []fyne.CanvasObject, size fyne.Size)
 	}
 }
 
-// mainSplitLayout emulates the React resizable split (30% left, 320-600px).
 type mainSplitLayout struct {
 	leftRatio float32
 	minLeft   float32
@@ -328,11 +330,9 @@ func (l *mainSplitLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 	objects[1].Resize(fyne.NewSize(size.Width-leftW, size.Height))
 }
 
-var _ = color.Transparent
-
 func (fa *FyneApp) OpenSettings() {
 	fyne.Do(func() {
-		scr := newSettingsScreen(func() { fa.SwitchToChats() })
+		scr := settings.NewSettingsScreen(func() { fa.SwitchToChats() })
 		fa.stack.Objects = []fyne.CanvasObject{scr}
 		fa.stack.Refresh()
 	})

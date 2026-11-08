@@ -1,4 +1,4 @@
-package fyneui
+package sidebar
 
 import (
 	"fyne.io/fyne/v2"

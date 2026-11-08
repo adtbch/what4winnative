@@ -1,4 +1,4 @@
-package fyneui
+package chat
 
 import (
 	"image/color"

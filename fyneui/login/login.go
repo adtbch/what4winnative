@@ -1,38 +1,51 @@
-package fyneui
+package login
 
 import (
-	"time"
+	"context"
 	"image/color"
 	"strings"
+	"time"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	qrcode "github.com/skip2/go-qrcode"
-)
 
+	"github.com/lugvitc/whats4linux/api"
+	"github.com/lugvitc/whats4linux/fyneui/theme"
+	"github.com/lugvitc/whats4linux/fyneui/utils"
+)
 
 var (
-	bgPage       = color.NRGBA{R: 240, G: 242, B: 245, A: 255} // bg-light-secondary approx
-	cardWhite    = color.NRGBA{R: 255, G: 255, B: 255, A: 255}
-	borderLight  = color.NRGBA{R: 243, G: 244, B: 246, A: 255} // gray-100
-	borderDiv    = color.NRGBA{R: 243, G: 244, B: 246, A: 255}
-	titleGray    = color.NRGBA{R: 55, G: 65, B: 81, A: 255}    // gray-700
-	textGray     = color.NRGBA{R: 75, G: 85, B: 99, A: 255}    // gray-600
-	boldGray     = color.NRGBA{R: 31, G: 41, B: 55, A: 255}    // gray-800
-	mutedGray    = color.NRGBA{R: 107, G: 114, B: 128, A: 255} // gray-500
-	statusGreen  = color.NRGBA{R: 74, G: 222, B: 128, A: 255}  // green-400 (light-primary-ish)
-	qrShadow     = color.NRGBA{R: 0, G: 0, B: 0, A: 18}
+	statusGreen = color.NRGBA{R: 0x25, G: 0xD3, B: 0x66, A: 255}
+	titleGray   = color.NRGBA{R: 0xea, G: 0xea, B: 0xea, A: 255}
+	textGray    = color.NRGBA{R: 0xaa, G: 0xaa, B: 0xaa, A: 255}
+	boldGray    = color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 255}
+	mutedGray   = color.NRGBA{R: 0x88, G: 0x88, B: 0x88, A: 255}
+	borderDiv   = color.NRGBA{R: 0x2a, G: 0x2a, B: 0x2a, A: 255}
+	cardWhite   = color.NRGBA{R: 0x1a, G: 0x1a, B: 0x1a, A: 255}
+	borderLight = color.NRGBA{R: 0x3a, G: 0x3a, B: 0x3a, A: 255}
+	bgPage      = color.NRGBA{R: 0x0b, G: 0x14, B: 0x1f, A: 255}
 )
 
+// App is the host surface LoginScreen needs: the WhatsApp API, a
+// cancellable context and navigation into chats. Implemented by
+// fyneui.FyneApp so login never imports the shell package.
+type App interface {
+	API() *api.Api
+	Ctx() context.Context
+	SwitchToChats()
+}
+
 type LoginScreen struct {
-	fa     *FyneApp
+	fa     App
 	status *canvas.Text
 	qrImg  *canvas.Image
 }
 
-func NewLoginScreen(fa *FyneApp) *LoginScreen {
+func NewLoginScreen(host App) *LoginScreen {
 	ls := &LoginScreen{
-		fa:     fa,
+		fa:     host,
 		status: canvas.NewText("", statusGreen),
 		qrImg:  canvas.NewImageFromImage(nil),
 	}
@@ -40,33 +53,32 @@ func NewLoginScreen(fa *FyneApp) *LoginScreen {
 	ls.status.TextStyle = fyne.TextStyle{Bold: true}
 	ls.status.Alignment = fyne.TextAlignCenter
 	ls.qrImg.FillMode = canvas.ImageFillContain
-	ls.qrImg.SetMinSize(fyne.NewSize(264, 264)) // size-66 approx
+	ls.qrImg.SetMinSize(fyne.NewSize(264, 264))
 
 	go ls.listenEvents()
 	go func() {
-		if fa.api.IsLoggedIn() {
-			// Wait until the websocket is connected before showing the chat UI.
-			for !fa.api.IsWaConnected() {
+		if ls.fa.API().IsLoggedIn() {
+			for !ls.fa.API().IsWaConnected() {
 				fyne.Do(func() {
 					ls.status.Text = "CONNECTING…"
 					ls.status.Refresh()
 				})
 				time.Sleep(200 * time.Millisecond)
 			}
-			fyne.Do(func() { fa.SwitchToChats() })
+			fyne.Do(func() { ls.fa.SwitchToChats() })
 			return
 		}
-		_ = fa.api.Login()
+		_ = ls.fa.API().Login()
 	}()
 	return ls
 }
 
 func (ls *LoginScreen) listenEvents() {
-	qrCh := SubscribeEvent("wa:qr")
-	statusCh := SubscribeEvent("wa:status")
+	qrCh := utils.SubscribeEvent("wa:qr")
+	statusCh := utils.SubscribeEvent("wa:status")
 	for {
 		select {
-		case <-ls.fa.ctx.Done():
+		case <-ls.fa.Ctx().Done():
 			return
 		case data := <-qrCh:
 			if s, ok := data.(string); ok && strings.TrimSpace(s) != "" {
@@ -118,7 +130,7 @@ func (ls *LoginScreen) setQR(code string) {
 }
 
 func waLogo(size float32) fyne.CanvasObject {
-	img := canvas.NewImageFromResource(resourceWALogo)
+	img := canvas.NewImageFromResource(theme.ResourceWALogo)
 	img.FillMode = canvas.ImageFillContain
 	return container.NewGridWrap(fyne.NewSize(size, size), img)
 }
@@ -129,7 +141,6 @@ func txt(s string, size float32, col color.NRGBA, bold bool) *canvas.Text {
 	t.TextStyle = fyne.TextStyle{Bold: bold}
 	return t
 }
-
 
 func rich(parts ...fyne.CanvasObject) fyne.CanvasObject {
 	c := container.NewHBox()
@@ -142,11 +153,10 @@ func rich(parts ...fyne.CanvasObject) fyne.CanvasObject {
 func (ls *LoginScreen) Content() fyne.CanvasObject {
 	header := container.NewHBox(
 		waLogo(40),
-		canvas.NewRectangle(color.Transparent), // gap
-		txt("Log in to WhatsApp", 24, titleGray, false), // font-light approx
+		canvas.NewRectangle(color.Transparent),
+		txt("Log in to WhatsApp", 24, titleGray, false),
 	)
 
-	// list-decimal style steps, matching React text
 	steps := container.NewVBox(
 		rich(txt("1. ", 18, textGray, false), txt("Open WhatsApp on your phone", 18, textGray, false)),
 		rich(txt("2. ", 18, textGray, false), txt("Tap ", 18, textGray, false), txt("Menu", 18, boldGray, true), txt(" or ", 18, textGray, false), txt("Settings", 18, boldGray, true)),
@@ -154,7 +164,6 @@ func (ls *LoginScreen) Content() fyne.CanvasObject {
 		rich(txt("4. ", 18, textGray, false), txt("Point your phone at this screen", 18, textGray, false)),
 	)
 
-	// space-y-4 approx
 	leftInner := container.NewVBox(
 		container.NewPadded(header),
 		container.NewGridWrap(fyne.NewSize(0, 24), canvas.NewRectangle(color.Transparent)),
@@ -164,7 +173,7 @@ func (ls *LoginScreen) Content() fyne.CanvasObject {
 
 	qrWhite := canvas.NewRectangle(color.White)
 	qrWhite.CornerRadius = 8
-		qrBox := container.NewMax(qrWhite, container.NewPadded(container.NewPadded(ls.qrImg)))
+	qrBox := container.NewMax(qrWhite, container.NewPadded(container.NewPadded(ls.qrImg)))
 
 	scanText := txt("Scan this QR code with the WhatsApp app", 14, mutedGray, false)
 	scanText.Alignment = fyne.TextAlignCenter
@@ -181,7 +190,6 @@ func (ls *LoginScreen) Content() fyne.CanvasObject {
 	divider := canvas.NewRectangle(borderDiv)
 	divider.SetMinSize(fyne.NewSize(1, 0))
 
-	// max-w-[900px] h-[520px] approx
 	body := container.NewHBox(
 		container.NewGridWrap(fyne.NewSize(449, 520), left),
 		divider,

@@ -1,4 +1,4 @@
-package fyneui
+package settings
 
 import (
 	"image/color"
@@ -8,6 +8,9 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
+	"github.com/lugvitc/whats4linux/fyneui/chat"
+	"github.com/lugvitc/whats4linux/fyneui/theme"
+	"github.com/lugvitc/whats4linux/fyneui/utils"
 )
 
 type settingsRow struct {
@@ -18,12 +21,12 @@ type settingsRow struct {
 
 func defaultSettingsRows() []settingsRow {
 	return []settingsRow{
-		{Icon: iconPerson, Label: "Account"},
-		{Icon: iconMuted, Label: "Privacy"},
-		{Icon: iconChats, Label: "Chats"},
-		{Icon: iconStatus, Label: "Notifications"},
-		{Icon: iconSettings, Label: "Advanced"},
-		{Icon: iconBack, Label: "Log out", Danger: true},
+		{Icon: utils.IconPerson, Label: "Account"},
+		{Icon: utils.IconMuted, Label: "Privacy"},
+		{Icon: utils.IconChats, Label: "Chats"},
+		{Icon: utils.IconStatus, Label: "Notifications"},
+		{Icon: utils.IconSettings, Label: "Advanced"},
+		{Icon: utils.IconBack, Label: "Log out", Danger: true},
 	}
 }
 
@@ -34,24 +37,24 @@ type settingsScreen struct {
 	root   *fyne.Container
 }
 
-func newSettingsScreen(onBack func()) *settingsScreen {
+func NewSettingsScreen(onBack func()) *settingsScreen {
 	s := &settingsScreen{onBack: onBack, rows: defaultSettingsRows()}
 	s.ExtendBaseWidget(s)
 	return s
 }
 
 func (s *settingsScreen) showDetail(title string, danger bool) {
-	bg := canvas.NewRectangle(waBg)
-	back := newIconHit("setd-back", iconBack, 20, 40, waMuted, func() { s.showList() })
-	h := canvas.NewText(title, waText)
+	bg := canvas.NewRectangle(theme.WaBg)
+	back := chat.NewIconHit("setd-back", utils.IconBack, 20, 40, theme.WaMuted, func() { s.showList() })
+	h := canvas.NewText(title, theme.WaText)
 	h.TextSize = 20
 	h.TextStyle = fyne.TextStyle{Bold: true}
-	header := container.New(&padLayout{h: 12, v: 10}, container.NewHBox(back, container.NewPadded(h)))
+	header := container.New(&utils.PadLayout{H: 12, V: 10}, container.NewHBox(back, container.NewPadded(h)))
 	msg := "This section is not implemented yet (scaffold)."
 	if danger {
 		msg = "Log out is available from the main app flow (scaffold)."
 	}
-	body := canvas.NewText(msg, waMuted)
+	body := canvas.NewText(msg, theme.WaMuted)
 	body.TextSize = 14
 	page := container.NewBorder(header, nil, nil, nil, container.NewCenter(container.NewPadded(body)))
 	fyne.Do(func() {
@@ -68,31 +71,30 @@ func (s *settingsScreen) showList() {
 }
 
 func (s *settingsScreen) listPage() fyne.CanvasObject {
-	bg := canvas.NewRectangle(waBg)
-	back := newIconHit("set-back", iconBack, 20, 40, waMuted, s.onBack)
-	title := canvas.NewText("Settings", waText)
+	bg := canvas.NewRectangle(theme.WaBg)
+	back := chat.NewIconHit("set-back", utils.IconBack, 20, 40, theme.WaMuted, s.onBack)
+	title := canvas.NewText("Settings", theme.WaText)
 	title.TextSize = 20
 	title.TextStyle = fyne.TextStyle{Bold: true}
-	header := container.New(&padLayout{h: 12, v: 10}, container.NewHBox(back, container.NewPadded(title)))
+	header := container.New(&utils.PadLayout{H: 12, V: 10}, container.NewHBox(back, container.NewPadded(title)))
 	hLine := canvas.NewRectangle(color.NRGBA{R: 255, G: 255, B: 255, A: 13})
 	hLine.SetMinSize(fyne.NewSize(0, 1))
 
 	items := make([]fyne.CanvasObject, 0, len(s.rows)*2)
 	for _, r := range s.rows {
 		row := r
-		fg := waText
+		fg := theme.WaText
 		if row.Danger {
 			fg = color.NRGBA{R: 239, G: 68, B: 68, A: 255}
 		}
-		ic := iconImage("set-"+row.Label, row.Icon, 20, fg)
+		ic := utils.IconImage("set-"+row.Label, row.Icon, 20, fg)
 		lbl := canvas.NewText(row.Label, fg)
 		lbl.TextSize = 15
-		chev := canvas.NewText("›", waMuted)
+		chev := canvas.NewText("›", theme.WaMuted)
 		chev.TextSize = 18
-		tap := &tapArea{onTap: func() { log.Println("settings:", row.Label); s.showDetail(row.Label, row.Danger) }}
-		tap.ExtendBaseWidget(tap)
+		tap := chat.NewTapArea(func() { log.Println("settings:", row.Label); s.showDetail(row.Label, row.Danger) })
 		line := container.NewBorder(nil, nil, container.NewPadded(ic), container.NewPadded(chev),
-			container.New(&padLayout{h: 4, v: 10}, lbl))
+			container.New(&utils.PadLayout{H: 4, V: 10}, lbl))
 		items = append(items, container.NewMax(tap, line))
 		sep := canvas.NewRectangle(color.NRGBA{R: 255, G: 255, B: 255, A: 8})
 		sep.SetMinSize(fyne.NewSize(0, 1))

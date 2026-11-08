@@ -1,4 +1,4 @@
-package fyneui
+package chat
 
 import (
 	"image/color"
@@ -8,6 +8,8 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/widget"
+	"github.com/lugvitc/whats4linux/fyneui/theme"
+	"github.com/lugvitc/whats4linux/fyneui/utils"
 )
 
 // newComposer mirrors ChatInput.tsx:419-566 (pill + separate send circle).
@@ -31,7 +33,7 @@ func newComposerEntry(onPasteImage func([]byte)) *composerEntry {
 
 func (e *composerEntry) TypedShortcut(s fyne.Shortcut) {
 	if _, ok := s.(*fyne.ShortcutPaste); ok && e.onPasteImage != nil {
-		if pngData, err := readClipboardImagePNG(); err == nil && len(pngData) > 0 {
+		if pngData, err := utils.ReadClipboardImagePNG(); err == nil && len(pngData) > 0 {
 			e.onPasteImage(pngData)
 			return
 		}
@@ -55,27 +57,27 @@ func newComposer(onSend func(string), onEmoji, onAttach func(), onPasteImage fun
 	}
 	entry.OnSubmitted = func(string) { send() }
 
-	emojiBtn := newIconButton("cv-emoji", iconEmoji, 20, waMuted, onEmoji)
-	attachBtn := newIconButton("cv-attach", iconAttach, 20, waMuted, onAttach)
+	emojiBtn := utils.NewIconButton("cv-emoji", utils.IconEmoji, 20, theme.WaMuted, onEmoji)
+	attachBtn := utils.NewIconButton("cv-attach", utils.IconAttach, 20, theme.WaMuted, onAttach)
 
-	pillBg := canvas.NewRectangle(waPanel2)
+	pillBg := canvas.NewRectangle(theme.WaPanel2)
 	pillBg.CornerRadius = 22
-	pill := container.NewMax(pillBg, container.New(&padLayout{h: 6, v: 4},
+	pill := container.NewMax(pillBg, container.New(&utils.PadLayout{H: 6, V: 4},
 		container.NewBorder(nil, nil,
 			container.NewHBox(container.NewPadded(emojiBtn)), nil,
 			container.NewBorder(nil, nil, nil, container.NewPadded(attachBtn), entry))))
 
 	sendBtn := newSendCircle(send)
 	// ChatInput.tsx: outer mx-3 mb-3 mt-1.5, row gap-2, send mb-0.5 h-11 w-11
-	row := container.NewBorder(nil, nil, nil, container.New(&padLayout{h: 4, v: 2}, sendBtn), pill)
-	outer := container.New(&padLayout{h: 12, v: 0}, container.NewBorder(spacer(1, 6), spacer(1, 12), nil, nil, row))
+	row := container.NewBorder(nil, nil, nil, container.New(&utils.PadLayout{H: 4, V: 2}, sendBtn), pill)
+	outer := container.New(&utils.PadLayout{H: 12, V: 0}, container.NewBorder(utils.Spacer(1, 6), utils.Spacer(1, 12), nil, nil, row))
 	return outer, entry
 }
 
 func newSendCircle(onTap func()) fyne.CanvasObject {
-	circle := canvas.NewCircle(waAccent) // #1b9a58
-	icon := iconImage("cv-send", iconSend, 20, waWhite)
-	btn := newTapArea(onTap)
+	circle := canvas.NewCircle(theme.WaAccent) // #1b9a58
+	icon := utils.IconImage("cv-send", utils.IconSend, 20, theme.WaWhite)
+	btn := NewTapArea(onTap)
 	inner := container.NewMax(circle, container.NewCenter(icon), btn)
 	return container.NewGridWrap(fyne.NewSize(44, 44), inner) // 44px ~ h-11 w-11
 }
@@ -86,7 +88,7 @@ type tapArea struct {
 	minSize fyne.Size
 }
 
-func newTapArea(onTap func()) *tapArea {
+func NewTapArea(onTap func()) *tapArea {
 	t := &tapArea{onTap: onTap}
 	t.ExtendBaseWidget(t)
 	return t

@@ -1,4 +1,4 @@
-package fyneui
+package sidebar
 
 import (
 	"image/color"
@@ -7,6 +7,8 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
+	"github.com/lugvitc/whats4linux/fyneui/theme"
+	"github.com/lugvitc/whats4linux/fyneui/utils"
 )
 
 // Geometry measured from ChatScreen.tsx via the React harness
@@ -41,8 +43,8 @@ type sidebarHeader struct {
 	avatar *canvas.Image
 	avBg   *canvas.Circle
 	avIcon fyne.CanvasObject
-	newBtn *iconButton
-	menuBt *iconButton
+	newBtn *utils.IconButton
+	menuBt *utils.IconButton
 }
 
 func newSidebarHeader(onNewChat, onMenu func()) *sidebarHeader {
@@ -74,16 +76,16 @@ func (h *sidebarHeader) SetSelfAvatar(res fyne.Resource) {
 }
 
 func (h *sidebarHeader) CreateRenderer() fyne.WidgetRenderer {
-	h.title = canvas.NewText("WhatsApp", waWhite)
+	h.title = canvas.NewText("WhatsApp", theme.WaWhite)
 	h.title.TextSize = headerTitleSize
 	h.title.TextStyle = fyne.TextStyle{Bold: true}
 
-	h.newBtn = newIconButton("hdr-new", iconNewChat, headerIconSize, waMuted, func() {
+	h.newBtn = utils.NewIconButton("hdr-new", utils.IconNewChat, headerIconSize, theme.WaMuted, func() {
 		if h.onNewChat != nil {
 			h.onNewChat()
 		}
 	})
-	h.menuBt = newIconButton("hdr-menu", iconMore, headerIconSize, waMuted, func() {
+	h.menuBt = utils.NewIconButton("hdr-menu", utils.IconMore, headerIconSize, theme.WaMuted, func() {
 		if h.onMenu != nil {
 			h.onMenu()
 		}
@@ -91,16 +93,16 @@ func (h *sidebarHeader) CreateRenderer() fyne.WidgetRenderer {
 
 	// bg-gray-600 dark:bg-gray-600 (#4a5565) circle with the UserAvatar glyph.
 	h.avBg = canvas.NewCircle(color.NRGBA{R: 0x4a, G: 0x55, B: 0x65, A: 255})
-	h.avIcon = iconImage("hdr-self", iconPerson, headerAvatarSize, waWhite)
+	h.avIcon = utils.IconImage("hdr-self", utils.IconPerson, headerAvatarSize, theme.WaWhite)
 	h.avatar = canvas.NewImageFromResource(nil)
 	h.avatar.FillMode = canvas.ImageFillCover
 	h.avatar.Hide()
 	avWrap := container.NewMax(h.avBg, container.NewCenter(h.avIcon), h.avatar)
 
 	right := container.New(&headerActionsLayout{},
-		wrapFixed(h.newBtn, headerBtnSize, headerBtnSize),
-		wrapFixed(h.menuBt, headerBtnSize, headerBtnSize),
-		container.New(&padLayout{h: headerAvatarML}, wrapFixed(avWrap, headerAvatarSize, headerAvatarSize)),
+		WrapFixed(h.newBtn, headerBtnSize, headerBtnSize),
+		WrapFixed(h.menuBt, headerBtnSize, headerBtnSize),
+		container.New(&utils.PadLayout{H: headerAvatarML}, WrapFixed(avWrap, headerAvatarSize, headerAvatarSize)),
 	)
 
 	body := container.New(&headerBodyLayout{}, h.title, right)
@@ -108,17 +110,17 @@ func (h *sidebarHeader) CreateRenderer() fyne.WidgetRenderer {
 	// CSS `h-16` is 64px including the 1px border-bottom, so the content box is
 	// 63px. container.NewBorder added the divider on top of a 64px child and
 	// produced 69px, hence the explicit layout.
-	divider := canvas.NewRectangle(waHeaderDivider)
+	divider := canvas.NewRectangle(theme.WaHeaderDivider)
 
 	return widget.NewSimpleRenderer(container.New(&headerLayout{},
-		wrapFixed(body, 0, headerHeight-1), divider))
+		WrapFixed(body, 0, headerHeight-1), divider))
 }
 
 // headerBodyLayout is the `flex items-center justify-between px-4` row: title
 // left, actions right, both vertically centred.
 //
 // container.NewBorder cannot be used here: it reserves the right object's width
-// out of the centre and the nested padLayout ended up collapsing the row to
+// out of the centre and the nested utils.PadLayout ended up collapsing the row to
 // zero width, which pushed the icons off-canvas.
 type headerBodyLayout struct{}
 
@@ -198,10 +200,10 @@ func (l *headerActionsLayout) Layout(objects []fyne.CanvasObject, size fyne.Size
 	}
 }
 
-// wrapFixed pins an object to an exact size; Fyne's GridWrap would otherwise
+// WrapFixed pins an object to an exact size; Fyne's GridWrap would otherwise
 // let the surrounding layout stretch it. A zero w or h means "let it stretch on
 // that axis" — passing 0 for the width collapsed the header row to 0px.
-func wrapFixed(obj fyne.CanvasObject, w, h float32) fyne.CanvasObject {
+func WrapFixed(obj fyne.CanvasObject, w, h float32) fyne.CanvasObject {
 	return container.New(&fixedSizeLayout{w: w, h: h}, obj)
 }
 
@@ -233,4 +235,11 @@ func (l *fixedSizeLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 		o.Move(fyne.NewPos(0, 0))
 		o.Resize(fyne.NewSize(w, h))
 	}
+}
+
+func maxF(a, b float32) float32 {
+	if a > b {
+		return a
+	}
+	return b
 }

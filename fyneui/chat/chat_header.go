@@ -1,4 +1,4 @@
-package fyneui
+package chat
 
 import (
 	"image/color"
@@ -9,6 +9,8 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/widget"
+	"github.com/lugvitc/whats4linux/fyneui/theme"
+	"github.com/lugvitc/whats4linux/fyneui/utils"
 )
 
 // Measured from frontend/src/harness.tsx `out.chatHeader` (ChatHeader.tsx at a
@@ -38,7 +40,7 @@ const (
 )
 
 var (
-	chatHeaderBg       = waPanel
+	chatHeaderBg       = theme.WaPanel
 	chatHeaderNameFg   = color.NRGBA{R: 0xf3, G: 0xf4, B: 0xf6, A: 0xff} // gray-100
 	chatHeaderAvatarBg = color.NRGBA{R: 0x4a, G: 0x55, B: 0x65, A: 0xff} // gray-600
 	chatHeaderCallFg   = color.NRGBA{R: 0xd1, G: 0xd5, B: 0xdc, A: 0xff} // gray-300
@@ -86,10 +88,10 @@ type iconHit struct {
 	hoverC color.Color
 }
 
-func newIconHit(name, path string, icon, box float32, c color.Color, onTap func()) *iconHit {
-	h := &iconHit{box: box, onTap: onTap, hoverC: waHover}
+func NewIconHit(name, path string, icon, box float32, c color.Color, onTap func()) *iconHit {
+	h := &iconHit{box: box, onTap: onTap, hoverC: theme.WaHover}
 	h.ExtendBaseWidget(h)
-	h.img = iconImage(name, path, icon, c)
+	h.img = utils.IconImage(name, path, icon, c)
 	h.hover = canvas.NewRectangle(color.Transparent)
 	h.hover.CornerRadius = 999
 	return h
@@ -126,13 +128,13 @@ func newChatHeader(onBack, onInfo func(), d chatHeaderData) *chatHeader {
 	h.ExtendBaseWidget(h)
 
 	h.bg = canvas.NewRectangle(chatHeaderBg)
-	h.line = canvas.NewRectangle(waHeaderDivider)
+	h.line = canvas.NewRectangle(theme.WaHeaderDivider)
 
 	// GoBackIcon is a 24px svg inside a bare <button> (`mr-4 md:hidden`).
-	backImg := iconImage("ch-back", iconBack, chatHeaderBackSize, chatHeaderCallFg)
+	backImg := utils.IconImage("ch-back", utils.IconBack, chatHeaderBackSize, chatHeaderCallFg)
 	h.back = newIconBox(backImg, onBack, chatHeaderBackSize, chatHeaderBackSize)
 
-	h.avBg = func() *canvas.Rectangle{r:=canvas.NewRectangle(chatHeaderAvatarBg);r.CornerRadius=6;return r}()
+	h.avBg = func() *canvas.Rectangle { r := canvas.NewRectangle(chatHeaderAvatarBg); r.CornerRadius = 6; return r }()
 	h.avImg = canvas.NewImageFromResource(nil)
 	h.avImg.FillMode = canvas.ImageFillCover
 	h.avTxt = canvas.NewText("", color.White)
@@ -144,15 +146,15 @@ func newChatHeader(onBack, onInfo func(), d chatHeaderData) *chatHeader {
 	h.name.TextSize = chatHeaderNameSize
 	h.name.TextStyle = fyne.TextStyle{Bold: true}
 
-	h.sub = canvas.NewText("", waMuted)
+	h.sub = canvas.NewText("", theme.WaMuted)
 	h.sub.TextSize = chatHeaderSubSize
 
-	h.call = newIconHit("ch-call", iconPhone, 22, chatHeaderCallBox, chatHeaderCallFg, func() {
+	h.call = NewIconHit("ch-call", utils.IconPhone, 22, chatHeaderCallBox, chatHeaderCallFg, func() {
 		if h.callCb != nil {
 			h.callCb()
 		}
 	})
-	h.info = newIconHit("ch-info", iconInfo, 20, chatHeaderInfoBox, color.White, onInfo)
+	h.info = NewIconHit("ch-info", utils.IconInfo, 20, chatHeaderInfoBox, color.White, onInfo)
 
 	h.Set(d)
 	return h
@@ -271,7 +273,7 @@ func (l *chatHeaderLayout) Layout(_ []fyne.CanvasObject, size fyne.Size) {
 	}
 	// `truncate` on the h2: cut to the available width, never overflow.
 	if l.nameS != nil {
-		if clipped := truncateToWidth(*l.nameS, textW, chatHeaderNameSize); clipped != l.name.Text {
+		if clipped := utils.TruncateToWidth(*l.nameS, textW, chatHeaderNameSize); clipped != l.name.Text {
 			l.name.Text = clipped
 			l.name.Refresh()
 		}

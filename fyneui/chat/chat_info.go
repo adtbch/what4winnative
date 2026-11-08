@@ -1,4 +1,4 @@
-package fyneui
+package chat
 
 import (
 	"fmt"
@@ -9,6 +9,8 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
+	"github.com/lugvitc/whats4linux/fyneui/theme"
+	"github.com/lugvitc/whats4linux/fyneui/utils"
 )
 
 const (
@@ -56,29 +58,29 @@ type chatInfoPanel struct {
 func newChatInfoPanel(onClose func(), onMute func(bool)) *chatInfoPanel {
 	p := &chatInfoPanel{onClose: onClose, onMute: onMute}
 	p.ExtendBaseWidget(p)
-	p.bg = canvas.NewRectangle(waPanel)
+	p.bg = canvas.NewRectangle(theme.WaPanel)
 	p.lineV = canvas.NewRectangle(color.NRGBA{R: 255, G: 255, B: 255, A: 13})
-	p.title = canvas.NewText("Contact Info", waText)
+	p.title = canvas.NewText("Contact Info", theme.WaText)
 	p.title.TextSize = 16
 	p.title.TextStyle = fyne.TextStyle{Bold: true}
-	p.avBg = func() *canvas.Rectangle{r:=canvas.NewRectangle(chatHeaderAvatarBg);r.CornerRadius=6;return r}()
+	p.avBg = func() *canvas.Rectangle { r := canvas.NewRectangle(chatHeaderAvatarBg); r.CornerRadius = 6; return r }()
 	p.avImg = &canvas.Image{FillMode: canvas.ImageFillContain}
 	p.avImg.SetMinSize(fyne.NewSize(chatInfoAvatarSz, chatInfoAvatarSz))
-	p.avTxt = canvas.NewText("?", waWhite)
+	p.avTxt = canvas.NewText("?", theme.WaWhite)
 	p.avTxt.Alignment = fyne.TextAlignCenter
 	p.avTxt.TextSize = 34
 	p.name = canvas.NewText("", chatHeaderNameFg)
 	p.name.TextSize = chatInfoNameSize
 	p.name.TextStyle = fyne.TextStyle{Bold: true}
 	p.name.Alignment = fyne.TextAlignCenter
-	p.sub = canvas.NewText("", waMuted)
+	p.sub = canvas.NewText("", theme.WaMuted)
 	p.sub.TextSize = 12
 	p.sub.Alignment = fyne.TextAlignCenter
-	p.aboutH = canvas.NewText("About", waMuted)
+	p.aboutH = canvas.NewText("About", theme.WaMuted)
 	p.aboutH.TextSize = 12
-	p.aboutV = canvas.NewText("No about info", waText)
+	p.aboutV = canvas.NewText("No about info", theme.WaText)
 	p.aboutV.TextSize = 14
-	p.muteLabel = canvas.NewText("Mute notifications", waText)
+	p.muteLabel = canvas.NewText("Mute notifications", theme.WaText)
 	p.muteLabel.TextSize = 14
 	p.partsBox = container.NewVBox()
 	return p
@@ -107,33 +109,33 @@ func (p *chatInfoPanel) Set(d chatInfoData) {
 		p.avTxt.Show()
 	}
 	p.muteLabel.Text = map[bool]string{true: "Unmute notifications", false: "Mute notifications"}[d.Muted]
-	p.muteLabel.Color = waText
+	p.muteLabel.Color = theme.WaText
 	// participants
 	p.partsBox.Objects = nil
 	if d.IsGroup {
-		h := canvas.NewText(fmt.Sprintf("%d members", maxI(d.MemberCount, len(d.Participants))), waMuted)
+		h := canvas.NewText(fmt.Sprintf("%d members", maxI(d.MemberCount, len(d.Participants))), theme.WaMuted)
 		h.TextSize = 12
-		p.partsBox.Add(container.New(&padLayout{h: 16, v: 6}, h))
+		p.partsBox.Add(container.New(&utils.PadLayout{H: 16, V: 6}, h))
 		lim := len(d.Participants)
 		if lim > 12 {
 			lim = 12
 		}
 		for i := 0; i < lim; i++ {
 			pt := d.Participants[i]
-			lbl := canvas.NewText(pt.Name, waText)
+			lbl := canvas.NewText(pt.Name, theme.WaText)
 			lbl.TextSize = 14
-			line := container.New(&padLayout{h: 16, v: 4}, container.NewHBox(lbl))
+			line := container.New(&utils.PadLayout{H: 16, V: 4}, container.NewHBox(lbl))
 			if pt.IsAdmin {
-				tag := canvas.NewText("admin", waAccent)
+				tag := canvas.NewText("admin", theme.WaAccent)
 				tag.TextSize = 11
-				line = container.New(&padLayout{h: 16, v: 4}, container.NewBorder(nil, nil, lbl, tag, nil))
+				line = container.New(&utils.PadLayout{H: 16, V: 4}, container.NewBorder(nil, nil, lbl, tag, nil))
 			}
 			p.partsBox.Add(line)
 		}
 		if len(d.Participants) > lim {
-			more := canvas.NewText(fmt.Sprintf("+%d more", len(d.Participants)-lim), waMuted)
+			more := canvas.NewText(fmt.Sprintf("+%d more", len(d.Participants)-lim), theme.WaMuted)
 			more.TextSize = 12
-			p.partsBox.Add(container.New(&padLayout{h: 16, v: 4}, more))
+			p.partsBox.Add(container.New(&utils.PadLayout{H: 16, V: 4}, more))
 		}
 	}
 	p.partsBox.Refresh()
@@ -159,16 +161,16 @@ func stringsTrim(s string) string {
 }
 
 func actionRow(icon, label string, fg color.NRGBA, onTap func()) fyne.CanvasObject {
-	ic := iconImage("act-"+label, icon, 20, fg)
+	ic := utils.IconImage("act-"+label, icon, 20, fg)
 	lbl := canvas.NewText(label, fg)
 	lbl.TextSize = 14
-	line := container.New(&padLayout{h: 16, v: 10}, container.NewHBox(ic, container.NewPadded(lbl)))
-	return container.NewMax(newTapArea(onTap), line)
+	line := container.New(&utils.PadLayout{H: 16, V: 10}, container.NewHBox(ic, container.NewPadded(lbl)))
+	return container.NewMax(NewTapArea(onTap), line)
 }
 
 func (p *chatInfoPanel) CreateRenderer() fyne.WidgetRenderer {
-	closeBtn := newIconHit("info-close", iconBack, 20, 40, waMuted, p.onClose)
-	header := container.New(&padLayout{h: 12, v: 0},
+	closeBtn := NewIconHit("info-close", utils.IconBack, 20, 40, theme.WaMuted, p.onClose)
+	header := container.New(&utils.PadLayout{H: 12, V: 0},
 		container.NewHBox(container.NewCenter(closeBtn), container.NewPadded(p.title)))
 	headerH := container.NewMax(container.NewGridWrap(fyne.NewSize(chatInfoWidth, chatInfoHeaderH), container.NewMax(canvas.NewRectangle(color.Transparent), header)))
 	hLine := canvas.NewRectangle(color.NRGBA{R: 255, G: 255, B: 255, A: 13})
@@ -176,9 +178,9 @@ func (p *chatInfoPanel) CreateRenderer() fyne.WidgetRenderer {
 
 	av := container.NewGridWrap(fyne.NewSize(chatInfoAvatarSz, chatInfoAvatarSz), container.NewMax(p.avBg, container.NewCenter(p.avImg), container.NewCenter(p.avTxt)))
 	profile := container.NewVBox(container.NewCenter(container.NewPadded(av)), container.NewCenter(p.name), container.NewCenter(p.sub))
-	about := container.New(&padLayout{h: 16, v: 8}, container.NewVBox(p.aboutH, p.aboutV))
+	about := container.New(&utils.PadLayout{H: 16, V: 8}, container.NewVBox(p.aboutH, p.aboutV))
 
-	searchRow := actionRow(iconSearch, "Search", waText, func() { log.Println("chatinfo: search stub") })
+	searchRow := actionRow(utils.IconSearch, "Search", theme.WaText, func() { log.Println("chatinfo: search stub") })
 	muteTap := &tapArea{onTap: func() {
 		want := p.muteLabel.Text == "Mute notifications"
 		if p.onMute != nil {
@@ -186,8 +188,8 @@ func (p *chatInfoPanel) CreateRenderer() fyne.WidgetRenderer {
 		}
 	}}
 	muteTap.ExtendBaseWidget(muteTap)
-	muteIc := iconImage("act-mute", iconMuted, 20, waText)
-	muteLine := container.New(&padLayout{h: 16, v: 10}, container.NewHBox(muteIc, container.NewPadded(p.muteLabel)))
+	muteIc := utils.IconImage("act-mute", utils.IconMuted, 20, theme.WaText)
+	muteLine := container.New(&utils.PadLayout{H: 16, V: 10}, container.NewHBox(muteIc, container.NewPadded(p.muteLabel)))
 	muteRow := container.NewMax(muteTap, muteLine)
 
 	actions := container.NewVBox(hLine, searchRow, muteRow, hLine)

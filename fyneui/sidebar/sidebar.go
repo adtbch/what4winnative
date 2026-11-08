@@ -1,6 +1,7 @@
-package fyneui
+package sidebar
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"image/color"
@@ -18,14 +19,28 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/lugvitc/whats4linux/api"
+	"github.com/lugvitc/whats4linux/fyneui/chat"
+	"github.com/lugvitc/whats4linux/fyneui/theme"
+	"github.com/lugvitc/whats4linux/fyneui/utils"
 )
 
 // Sidebar mirrors frontend/src/screens/ChatScreen.tsx: a 64px header
 // ("WhatsApp" + new-chat/menu/avatar), the chats/communities/channels/status
 // tab row, a rounded search pill and the chat list (48px avatar, name + time,
 // preview + pin/badge).
+
+// App is the host surface Sidebar needs: WhatsApp API, Fyne context, shared
+// app state and chat navigation. Implemented by fyneui.FyneApp so sidebar
+// never imports the shell package.
+type App interface {
+	API() *api.Api
+	Ctx() context.Context
+	State() *utils.AppState
+	OpenChat(string)
+}
+
 type Sidebar struct {
-	fa *FyneApp
+	fa App
 
 	mu        sync.RWMutex
 	allChats  []api.ChatElement
@@ -53,9 +68,9 @@ type Sidebar struct {
 type chatRowRefs struct {
 	jid       string
 	hover     *canvas.Rectangle
-	name      *truncLabel
+	name      *utils.TruncLabel
 	time      *canvas.Text
-	preview   *truncLabel
+	preview   *utils.TruncLabel
 	badgeBg   *canvas.Rectangle
 	badgeTxt  *canvas.Text
 	badgeWrap fyne.CanvasObject
@@ -84,7 +99,7 @@ const (
 	chatAvatarGap  float32 = 16
 )
 
-func NewSidebar(fa *FyneApp) *Sidebar {
+func NewSidebar(fa App) *Sidebar {
 	s := &Sidebar{
 		fa:        fa,
 		unread:    make(map[string]int),
@@ -156,7 +171,7 @@ func (s *Sidebar) topBar() fyne.CanvasObject {
 }
 
 func (s *Sidebar) body() fyne.CanvasObject {
-	s.statusLbl = canvas.NewText("", waMuted)
+	s.statusLbl = canvas.NewText("", theme.WaMuted)
 	s.statusLbl.TextSize = 12
 	s.statusLbl.Alignment = fyne.TextAlignCenter
 	placeholder := container.NewCenter(container.NewPadded(s.statusLbl))
@@ -273,7 +288,8 @@ func (s *Sidebar) newRow() fyne.CanvasObject {
 	hover := canvas.NewRectangle(color.Transparent)
 	hover.CornerRadius = 0
 
-	avatarBg := canvas.NewRectangle(color.NRGBA{R: 0x37, G: 0x44, B: 0x4c, A: 255}); avatarBg.CornerRadius = 6
+	avatarBg := canvas.NewRectangle(color.NRGBA{R: 0x37, G: 0x44, B: 0x4c, A: 255})
+	avatarBg.CornerRadius = 6
 	avatarImg := canvas.NewImageFromResource(nil)
 	avatarImg.FillMode = canvas.ImageFillCover
 	avatarImg.Hide()
@@ -281,13 +297,13 @@ func (s *Sidebar) newRow() fyne.CanvasObject {
 	// groups, a person silhouette for contacts (ChatScreen.tsx MemoizedChatAvatar).
 	// React never shows initials, so the fallback text starts hidden: the glyph
 	// (person/people) is the only fallback. updateRow keeps it hidden.
-	avatarTxt := canvas.NewText("?", waText)
+	avatarTxt := canvas.NewText("?", theme.WaText)
 	avatarTxt.Alignment = fyne.TextAlignCenter
 	avatarTxt.TextSize = 18
 	avatarTxt.TextStyle = fyne.TextStyle{Bold: true}
 	avatarTxt.Hide()
-	avatarPerson := iconImageVB("row-av-person", iconPerson, 36, 48, waAvatarIcon)
-	avatarPeople := iconImage("row-av-people", iconPeople, 26, waAvatarIcon)
+	avatarPerson := utils.IconImageVB("row-av-person", utils.IconPerson, 36, 48, theme.WaAvatarIcon)
+	avatarPeople := utils.IconImage("row-av-people", utils.IconPeople, 26, theme.WaAvatarIcon)
 	avatarPerson.Hide()
 	avatarPeople.Hide()
 	avatarInner := container.NewMax(avatarBg, avatarImg,
@@ -303,41 +319,41 @@ func (s *Sidebar) newRow() fyne.CanvasObject {
 	// Fyne's TextStyle is a Bold flag only — no 500 weight — so Bold (700) is the
 	// closest match; regular (400) reads visibly thinner than React next to the
 	// 14px preview.
-	name := newTruncLabel(16, waText, true)
-	timeTxt := canvas.NewText("", waMuted)
+	name := utils.NewTruncLabel(16, theme.WaText, true)
+	timeTxt := canvas.NewText("", theme.WaMuted)
 	timeTxt.TextSize = 12
 	timeTxt.TextStyle = fyne.TextStyle{Bold: true} // font-medium
 	timeTxt.Alignment = fyne.TextAlignTrailing
 	// `justify-between`: no gap, the name may run right up to the timestamp.
 	topRow := container.New(&rowLineLayout{gap: 0},
-		container.New(&truncLayout{l: name}, name.obj()), timeTxt)
+		container.New(utils.NewTruncLayout(name), name.Obj()), timeTxt)
 
-	preview := newTruncLabel(14, waMuted, false)
+	preview := utils.NewTruncLabel(14, theme.WaMuted, false)
 
 	// React: text-xs (12px) font-semibold, h-5 (20px), min-w-5 px-1.5 (6px each
 	// side), rounded-full. The pill grows with the label: "99+" measures 34px.
-	badgeTxt := canvas.NewText("", waBadgeText)
+	badgeTxt := canvas.NewText("", theme.WaBadgeText)
 	badgeTxt.TextSize = 12
 	badgeTxt.TextStyle = fyne.TextStyle{Bold: true}
 	badgeTxt.Alignment = fyne.TextAlignCenter
-	badgeBg := canvas.NewRectangle(waGreen)
+	badgeBg := canvas.NewRectangle(theme.WaGreen)
 	badgeBg.CornerRadius = 10
 	badgeWrap := container.New(&badgeLayout{bg: badgeBg, txt: badgeTxt},
 		badgeBg, badgeTxt)
 	badgeWrap.Hide()
 
-	pin := iconImage("row-pin", iconPin, 14, waMuted)
+	pin := utils.IconImage("row-pin", utils.IconPin, 14, theme.WaMuted)
 	pin.Hide()
 
 	// `flex items-center gap-2` — 8px between the pin and the badge.
 	right := container.New(&rowActionsLayout{gap: 8}, pin, badgeWrap)
 	bottomRow := container.New(&rowLineLayout{gap: 8},
-		container.New(&truncLayout{l: preview}, preview.obj()), right)
+		container.New(utils.NewTruncLayout(preview), preview.Obj()), right)
 
 	// React: `flex justify-between items-baseline mb-1` over a `text-sm` row.
 	// 24px (name line) + 4px (mb-1) + 20px (preview line) = 48px, the same as
 	// the avatar, which is why the row is exactly 72px with py-3.
-	mid := container.New(&stackedLayout{heights: []float32{24, 20}, gap: 4}, topRow, bottomRow)
+	mid := container.New(utils.NewStackedLayout([]float32{24, 20}, 4), topRow, bottomRow)
 
 	// px-4 py-3, avatar 48 + mr-4: the text column starts at 16+48+16 = 80 and
 	// ends at width-16. container.NewBorder adds the theme's 4px padding on
@@ -348,10 +364,10 @@ func (s *Sidebar) newRow() fyne.CanvasObject {
 	catcher := &rowCatcher{}
 	catcher.ExtendBaseWidget(catcher)
 	root := container.NewMax(hover, body, catcher)
-	sized := container.New(&minSizeLayout{w: 0, h: chatRowHeight}, root)
+	sized := container.New(utils.NewMinSizeLayout(0, chatRowHeight), root)
 
 	catcher.onIn = func() {
-		hover.FillColor = waHover
+		hover.FillColor = theme.WaHover
 		hover.Refresh()
 	}
 	catcher.onOut = func() {
@@ -409,9 +425,9 @@ func (s *Sidebar) updateRow(id widget.ListItemID, obj fyne.CanvasObject) {
 
 	refs.time.Text = formatChatTimestamp(c.LatestTS)
 	if unread > 0 {
-		refs.time.Color = waGreen
+		refs.time.Color = theme.WaGreen
 	} else {
-		refs.time.Color = waMuted
+		refs.time.Color = theme.WaMuted
 	}
 	refs.time.Refresh()
 
@@ -432,7 +448,7 @@ func (s *Sidebar) updateRow(id widget.ListItemID, obj fyne.CanvasObject) {
 		refs.badgeWrap.Hide()
 	}
 
-	refs.avatarBg.FillColor = avatarColor(c.JID)
+	refs.avatarBg.FillColor = utils.AvatarColor(c.JID)
 	refs.avatarBg.Refresh()
 	if avRes != nil {
 		refs.avatarImg.Resource = avRes
@@ -444,7 +460,7 @@ func (s *Sidebar) updateRow(id widget.ListItemID, obj fyne.CanvasObject) {
 		// React shows a glyph, never initials: "people" for groups, a person
 		// silhouette for contacts. initials() is only a last-resort fallback.
 		refs.avatarTxt.Hide()
-		if isGroupJID(c.JID) {
+		if IsGroupJID(c.JID) {
 			refs.avPeople.Show()
 			refs.avPerson.Hide()
 		} else {
@@ -458,7 +474,7 @@ func (s *Sidebar) selectChat(c api.ChatElement) {
 	s.mu.Lock()
 	delete(s.unread, c.JID)
 	s.mu.Unlock()
-	s.fa.state.SetSelectedChatID(c.JID)
+	s.fa.State().SetSelectedChatID(c.JID)
 	s.fa.OpenChat(c.JID)
 	s.refreshVisible()
 }
@@ -466,7 +482,7 @@ func (s *Sidebar) selectChat(c api.ChatElement) {
 // chatPreviewText flattens the stored HTML preview and maps media markers to
 // the labels WhatsApp shows, matching ChatScreen.tsx's subtitle handling.
 func chatPreviewText(c api.ChatElement) string {
-	prev := htmlPreview(c.LatestMessage)
+	prev := chat.HtmlPreview(c.LatestMessage)
 	switch prev {
 	case "image":
 		prev = "📷 Photo"
@@ -479,8 +495,8 @@ func chatPreviewText(c api.ChatElement) string {
 	case "sticker":
 		prev = "Sticker"
 	}
-	if c.Sender != "" && isGroupJID(c.JID) && prev != "" {
-		prev = shortSender(c.Sender) + ": " + prev
+	if c.Sender != "" && IsGroupJID(c.JID) && prev != "" {
+		prev = ShortSender(c.Sender) + ": " + prev
 	}
 	if prev == "" {
 		prev = " "
@@ -494,7 +510,7 @@ func (s *Sidebar) loadLoop() {
 	delays := []time.Duration{200 * time.Millisecond, 800 * time.Millisecond, 2 * time.Second, 4 * time.Second, 6 * time.Second, 10 * time.Second}
 	for i, d := range delays {
 		select {
-		case <-s.fa.ctx.Done():
+		case <-s.fa.Ctx().Done():
 			return
 		case <-time.After(d):
 		}
@@ -506,7 +522,7 @@ func (s *Sidebar) loadLoop() {
 	}
 	for {
 		select {
-		case <-s.fa.ctx.Done():
+		case <-s.fa.Ctx().Done():
 			return
 		case <-time.After(15 * time.Second):
 		}
@@ -522,7 +538,7 @@ func (s *Sidebar) loadLoop() {
 }
 
 func (s *Sidebar) fetchChats() (int, error) {
-	chats, err := s.fa.api.GetChatList()
+	chats, err := s.fa.API().GetChatList()
 	if err != nil {
 		log.Println("sidebar GetChatList error:", err)
 		fyne.Do(func() {
@@ -601,13 +617,13 @@ func (s *Sidebar) filterAndSortLocked() []api.ChatElement {
 }
 
 func (s *Sidebar) listenEvents() {
-	refreshCh := SubscribeEvent("wa:chat_list_refresh")
-	statusCh := SubscribeEvent("wa:status")
-	newMsgCh := SubscribeEvent("wa:new_message")
-	readCh := SubscribeEvent("wa:chat_marked_read")
-	unreadCh := SubscribeEvent("wa:chat_marked_unread")
-	picCh := SubscribeEvent("wa:picture_update")
-	myPicCh := SubscribeEvent("wa:self_avatar_updated")
+	refreshCh := utils.SubscribeEvent("wa:chat_list_refresh")
+	statusCh := utils.SubscribeEvent("wa:status")
+	newMsgCh := utils.SubscribeEvent("wa:new_message")
+	readCh := utils.SubscribeEvent("wa:chat_marked_read")
+	unreadCh := utils.SubscribeEvent("wa:chat_marked_unread")
+	picCh := utils.SubscribeEvent("wa:picture_update")
+	myPicCh := utils.SubscribeEvent("wa:self_avatar_updated")
 
 	debounce := time.NewTimer(time.Hour)
 	debounce.Stop()
@@ -615,7 +631,7 @@ func (s *Sidebar) listenEvents() {
 
 	for {
 		select {
-		case <-s.fa.ctx.Done():
+		case <-s.fa.Ctx().Done():
 			return
 		case <-refreshCh:
 			pending = true
@@ -710,16 +726,16 @@ func (s *Sidebar) handleNewMessage(data any) {
 	}
 	if reaction != "" {
 		if text != "" {
-			text = sender + " reacted " + reaction + " to: \"" + truncateRunes(text, 40) + "\""
+			text = sender + " reacted " + reaction + " to: \"" + TruncateRunes(text, 40) + "\""
 		} else {
 			text = sender + " reacted " + reaction
 		}
 		sender = ""
 	}
 
-	s.fa.state.mu.RLock()
-	selected := s.fa.state.SelectedChatID
-	s.fa.state.mu.RUnlock()
+	s.fa.State().Lock()
+	selected := s.fa.State().SelectedChatID
+	s.fa.State().Unlock()
 
 	s.mu.Lock()
 	idx := -1
@@ -771,7 +787,7 @@ func (s *Sidebar) loadAvatars(chats []api.ChatElement) {
 			continue
 		}
 		// If cached locally, read it immediately without network
-		if dataURL, err := s.fa.api.GetCachedAvatar(jid, false); err == nil && dataURL != "" {
+		if dataURL, err := s.fa.API().GetCachedAvatar(jid, false); err == nil && dataURL != "" {
 			if res := resourceFromDataURL(jid, dataURL); res != nil {
 				s.mu.Lock()
 				s.avatarRes[jid] = res
@@ -789,7 +805,7 @@ func (s *Sidebar) loadAvatars(chats []api.ChatElement) {
 	}
 
 	// Network fetch only when WA is connected
-	if !s.fa.api.IsWaConnected() {
+	if !s.fa.API().IsWaConnected() {
 		return
 	}
 
@@ -813,7 +829,7 @@ func (s *Sidebar) loadAvatars(chats []api.ChatElement) {
 		go func(j string) {
 			defer wg.Done()
 			defer func() { <-sem }()
-			if dataURL, err := s.fa.api.GetCachedAvatar(j, false); err == nil && dataURL != "" {
+			if dataURL, err := s.fa.API().GetCachedAvatar(j, false); err == nil && dataURL != "" {
 				if res := resourceFromDataURL(j, dataURL); res != nil {
 					s.mu.Lock()
 					s.avatarRes[j] = res
@@ -834,7 +850,7 @@ func (s *Sidebar) loadAvatars(chats []api.ChatElement) {
 }
 
 func (s *Sidebar) loadAvatar(jid string, recache bool) {
-	dataURL, err := s.fa.api.GetCachedAvatar(jid, recache)
+	dataURL, err := s.fa.API().GetCachedAvatar(jid, recache)
 	if err != nil || dataURL == "" {
 		return
 	}
@@ -853,7 +869,7 @@ func (s *Sidebar) loadAvatar(jid string, recache bool) {
 }
 
 func (s *Sidebar) loadSelfAvatar() {
-	url, err := s.fa.api.GetSelfAvatar(false)
+	url, err := s.fa.API().GetSelfAvatar(false)
 	if err != nil || url == "" || s.header == nil {
 		return
 	}
@@ -895,11 +911,11 @@ func chatDisplayName(c api.ChatElement) string {
 	return c.JID
 }
 
-func isGroupJID(jid string) bool {
+func IsGroupJID(jid string) bool {
 	return strings.HasSuffix(jid, "@g.us") || strings.HasSuffix(jid, "@newsletter")
 }
 
-func shortSender(sender string) string {
+func ShortSender(sender string) string {
 	s := sender
 	if i := strings.Index(s, "@"); i > 0 {
 		s = s[:i]
@@ -913,7 +929,7 @@ func shortSender(sender string) string {
 	return s
 }
 
-func truncateRunes(s string, n int) string {
+func TruncateRunes(s string, n int) string {
 	s = strings.ReplaceAll(s, "\n", " ")
 	s = strings.TrimSpace(s)
 	r := []rune(s)

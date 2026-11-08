@@ -1,4 +1,4 @@
-package fyneui
+package chat
 
 import (
 	"fmt"
@@ -8,6 +8,8 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"github.com/lugvitc/whats4linux/fyneui/theme"
+	"github.com/lugvitc/whats4linux/fyneui/utils"
 )
 
 // mediaBubbleData is the render input for T11 (MediaContent.tsx / MessageItem).
@@ -51,9 +53,9 @@ func newImageVideoBubble(d mediaBubbleData, video bool) fyne.CanvasObject {
 	size := mediaBox(d.Width, d.Height)
 	if size.Width > maxW {
 		r := maxW / size.Width
-		size = fyne.NewSize(maxW, maxF(size.Height*r, 80))
+		size = fyne.NewSize(maxW, utils.MaxF(size.Height*r, 80))
 	}
-	holder := canvas.NewRectangle(waPanel2)
+	holder := canvas.NewRectangle(theme.WaPanel2)
 	holder.CornerRadius = 8
 	ph := "📷 Photo"
 	if video {
@@ -72,10 +74,10 @@ func newImageVideoBubble(d mediaBubbleData, video bool) fyne.CanvasObject {
 	box := container.NewMax(holder, container.NewCenter(phTxt), img)
 
 	if video {
-		play := canvas.NewText("▶", waWhite)
+		play := canvas.NewText("▶", theme.WaWhite)
 		play.TextSize = 34
 		play.Alignment = fyne.TextAlignCenter
-		circle := canvas.NewCircle(waPlayOverlay)
+		circle := canvas.NewCircle(theme.WaPlayOverlay)
 		overlay := container.NewCenter(container.NewGridWrap(fyne.NewSize(56, 56), container.NewMax(circle, container.NewCenter(play))))
 		return container.NewMax(container.NewGridWrap(size, box), overlay)
 	}
@@ -86,7 +88,7 @@ func newStickerBubble(d mediaBubbleData) fyne.CanvasObject {
 	size := fyne.NewSize(150, 150)
 	if d.Thumb == nil {
 		// no bubble background for stickers (MessageItem: bg-transparent shadow-none)
-		t := canvas.NewText("Sticker", waMuted)
+		t := canvas.NewText("Sticker", theme.WaMuted)
 		t.TextSize = 12
 		t.Alignment = fyne.TextAlignCenter
 		return container.NewGridWrap(size, container.NewCenter(t))
@@ -98,7 +100,7 @@ func newStickerBubble(d mediaBubbleData) fyne.CanvasObject {
 }
 
 func newAudioBubble(d mediaBubbleData) fyne.CanvasObject {
-	icon := canvas.NewText("▶", waText)
+	icon := canvas.NewText("▶", theme.WaText)
 	icon.TextSize = 18
 	circle := canvas.NewCircle(color.NRGBA{R: 0x1b, G: 0x9a, B: 0x58, A: 255})
 	btn := container.NewGridWrap(fyne.NewSize(36, 36), container.NewMax(circle, container.NewCenter(icon)))
@@ -106,12 +108,12 @@ func newAudioBubble(d mediaBubbleData) fyne.CanvasObject {
 	if strings.TrimSpace(label) == "" {
 		label = "Audio message"
 	}
-	txt := canvas.NewText(label, waMuted)
+	txt := canvas.NewText(label, theme.WaMuted)
 	txt.TextSize = 14
 	bar := canvas.NewRectangle(color.NRGBA{R: 255, G: 255, B: 255, A: 40})
 	bar.SetMinSize(fyne.NewSize(140, 3))
-	row := container.NewHBox(btn, spacer(8, 1), container.NewVBox(spacer(1, 8), txt, spacer(1, 4), bar))
-	pill := canvas.NewRectangle(waPanel2)
+	row := container.NewHBox(btn, utils.Spacer(8, 1), container.NewVBox(utils.Spacer(1, 8), txt, utils.Spacer(1, 4), bar))
+	pill := canvas.NewRectangle(theme.WaPanel2)
 	pill.CornerRadius = 10
 	return container.NewMax(pill, container.NewPadded(row))
 }
@@ -131,22 +133,22 @@ func newDocumentBubble(d mediaBubbleData) fyne.CanvasObject {
 	// red chip for file type (MessageItem: w-10 h-12 bg-red-500)
 	chip := canvas.NewRectangle(color.NRGBA{R: 239, G: 68, B: 68, A: 255}) // red-500
 	chip.CornerRadius = 4
-	et := canvas.NewText(ext, waWhite)
+	et := canvas.NewText(ext, theme.WaWhite)
 	et.TextSize = 10
 	et.TextStyle = fyne.TextStyle{Bold: true}
 	et.Alignment = fyne.TextAlignCenter
 	badge := container.NewGridWrap(fyne.NewSize(40, 48), container.NewMax(chip, container.NewCenter(et)))
 
-	title := canvas.NewText(truncateRunes(name, 38), waText)
+	title := canvas.NewText(utils.TruncateRunes(name, 38), theme.WaText)
 	title.TextSize = 13
 	sub := strings.TrimSpace(d.SizeLabel)
 	if sub == "" {
 		sub = "Document"
 	}
-	st := canvas.NewText(sub, waMuted)
+	st := canvas.NewText(sub, theme.WaMuted)
 	st.TextSize = 11
 	col := container.NewVBox(title, st)
-	dl := canvas.NewText("↓", waMuted)
+	dl := canvas.NewText("↓", theme.WaMuted)
 	dl.TextSize = 18
 	row := container.NewBorder(nil, nil, badge, container.NewPadded(dl), container.NewPadded(col))
 	card := canvas.NewRectangle(color.NRGBA{R: 0, G: 0, B: 0, A: 28})
