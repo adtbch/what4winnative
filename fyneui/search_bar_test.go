@@ -56,8 +56,8 @@ func TestSearchBarGeometryMatchesReact(t *testing.T) {
 	if got, want := s.icon.Size().Width, float32(reactSearchIcon); got != want {
 		t.Fatalf("icon size = %v, want %v", got, want)
 	}
-	// entry starts after icon + mr-4.
-	if got, want := s.entry.Position().X, float32(reactSearchPillX+reactSearchPillPadX+reactSearchIcon+reactSearchIconMR); got != want {
+	// entry starts after icon + mr-4 (entry wrapped in ThemeOverride chrome).
+	if got, want := s.entryChrome.Position().X, float32(reactSearchPillX+reactSearchPillPadX+reactSearchIcon+reactSearchIconMR); got != want {
 		t.Fatalf("entry x = %v, want %v", got, want)
 	}
 	w.Close()

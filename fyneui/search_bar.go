@@ -5,6 +5,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -34,6 +35,7 @@ type searchBar struct {
 	widget.BaseWidget
 
 	entry       *widget.Entry
+	entryChrome fyne.CanvasObject
 	bg          *canvas.Rectangle
 	icon        fyne.CanvasObject
 	placeholder string
@@ -51,7 +53,6 @@ func newSearchBar(placeholder string, onChange func(string)) *searchBar {
 	s.entry = widget.NewEntry()
 	s.entry.SetPlaceHolder(placeholder)
 	s.entry.TextStyle = fyne.TextStyle{}
-	// border handled by outer pill; entry styled by theme override at container
 	s.entry.OnChanged = func(v string) {
 		if s.silent {
 			return
@@ -60,6 +61,9 @@ func newSearchBar(placeholder string, onChange func(string)) *searchBar {
 			s.onChange(v)
 		}
 	}
+	// The pill (s.bg) owns the chrome. Strip Entry's own InputBackground/border/focus
+	// so the typed text and hit area stay in sync with the pill, not a second box.
+	s.entryChrome = container.NewThemeOverride(s.entry, &borderlessEntryTheme{Theme: fyne.CurrentApp().Settings().Theme(), bg: color.Transparent})
 	s.ExtendBaseWidget(s)
 	return s
 }
@@ -90,7 +94,7 @@ func (s *searchBar) SetText(v string) {
 func (s *searchBar) Text() string { return s.entry.Text }
 
 func (s *searchBar) CreateRenderer() fyne.WidgetRenderer {
-	return &searchBarRenderer{s: s, objs: []fyne.CanvasObject{s.bg, s.icon, s.entry}}
+	return &searchBarRenderer{s: s, objs: []fyne.CanvasObject{s.bg, s.icon, s.entryChrome}}
 }
 
 type searchBarRenderer struct {
@@ -113,8 +117,8 @@ func (r *searchBarRenderer) Layout(size fyne.Size) {
 	// entryInkInset-searchOuterPadY puts Fyne's ink on the same rows.
 	entryX := searchOuterPadX + searchPillPadX + searchIconSize + searchIconMR
 	entryW := pillW - searchPillPadX*2 - searchIconSize - searchIconMR
-	r.s.entry.Resize(fyne.NewSize(entryW, searchPillH))
-	r.s.entry.Move(fyne.NewPos(entryX, searchOuterPadY+searchTextLift))
+	r.s.entryChrome.Resize(fyne.NewSize(entryW, searchPillH))
+	r.s.entryChrome.Move(fyne.NewPos(entryX, searchOuterPadY+searchTextLift))
 }
 
 func (r *searchBarRenderer) MinSize() fyne.Size {
