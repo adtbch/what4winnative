@@ -1,6 +1,7 @@
 package fyneui
 
 import (
+	"errors"
 	"net/url"
 	"encoding/base64"
 	"context"
@@ -205,9 +206,7 @@ func (cv *ChatView) loadMessages(ctx context.Context) {
 			cv.addMessageLocked(m)
 		}
 		cv.messages.Refresh()
-		if cv.scroll != nil {
-			cv.scroll.ScrollToBottom()
-		}
+		cv.scrollToBottom()
 	})
 	// mark read once the messages are on screen, like the React view does
 	go func() {
@@ -244,6 +243,24 @@ func (cv *ChatView) addMessageLocked(m store.DecodedMessage) {
 	cv.messages.Add(cv.bubble(m, first))
 	cv.lastSenderID = senderRunID(m)
 	cv.hasLast = true
+}
+
+func (cv *ChatView) scrollToBottom() {
+	fyne.Do(func() {
+		if cv.scroll == nil || cv.messages == nil { return }
+		cv.messages.Refresh(); cv.scroll.Refresh(); cv.scroll.ScrollToBottom()
+		go func() {
+			for _, d := range []time.Duration{50*time.Millisecond, 150*time.Millisecond, 400*time.Millisecond} {
+				time.Sleep(d)
+				fyne.Do(func() {
+					if cv.scroll == nil || cv.messages == nil { return }
+					h := cv.messages.MinSize().Height - cv.scroll.Size().Height
+					if h > 0 { cv.scroll.Offset.Y = h }
+					cv.scroll.Refresh()
+				})
+			}
+		}()
+	})
 }
 
 func (cv *ChatView) listenEvents(ctx context.Context) {
@@ -289,9 +306,7 @@ func (cv *ChatView) appendLatest() {
 			cv.addMessageLocked(m)
 		}
 		cv.messages.Refresh()
-		if cv.scroll != nil {
-			cv.scroll.ScrollToBottom()
-		}
+		cv.scrollToBottom()
 	})
 	if len(newUnreadIDs) > 0 {
 		go func(ids []string) {
@@ -652,7 +667,11 @@ func (cv *ChatView) sendText(text string) {
 	go func() {
 		if _, err := cv.fa.api.SendMessage(cv.jid, api.MessageContent{Type: "text", Text: text}); err != nil {
 			log.Println("SendMessage:", err)
-			fyne.Do(func() { dialog.ShowError(fmt.Errorf("send failed: %w", err), cv.fa.win) })
+			fyne.Do(func() { msg := err.Error()
+			if strings.Contains(msg, "websocket not connected") || strings.Contains(msg, "not connected") || strings.Contains(msg, "usync") {
+				msg = "WhatsApp belum terhubung. Tunggu koneksi, lalu kirim lagi."
+			}
+			dialog.ShowError(errors.New("send failed: "+msg), cv.fa.win) })
 			return
 		}
 		cv.appendLatest()
