@@ -666,6 +666,10 @@ func (cv *ChatView) sendText(text string) {
 	}
 	go func() {
 		if _, err := cv.fa.api.SendMessage(cv.jid, api.MessageContent{Type: "text", Text: text}); err != nil {
+			if !cv.fa.api.IsWaConnected() {
+				fyne.Do(func(){ dialog.ShowInformation("Menghubungkan", "Menunggu WhatsApp terhubung, tunggu dulu...", cv.fa.win) })
+				return
+			}
 			log.Println("SendMessage:", err)
 			fyne.Do(func() { msg := err.Error()
 			if strings.Contains(msg, "websocket not connected") || strings.Contains(msg, "not connected") || strings.Contains(msg, "usync") {
