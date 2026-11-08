@@ -45,6 +45,15 @@ func New(a *api.Api) *FyneApp {
 	fa.win.Resize(fyne.NewSize(1360, 860))
 	fa.stack = container.NewMax(canvas.NewRectangle(waBg), widget.NewLabel("Loading..."))
 	fa.win.SetContent(fa.stack)
+    // Wait for WhatsApp WebSocket connection before showing UI
+    go func() {
+        // poll until connected
+        for !fa.api.IsWaConnected() {
+            time.Sleep(200 * time.Millisecond)
+        }
+        // Once connected, show login screen
+        fyne.Do(func() { fa.ShowLogin() })
+    }()
 	return fa
 }
 
