@@ -38,19 +38,19 @@ type chatInfoData struct {
 
 type chatInfoPanel struct {
 	widget.BaseWidget
-	bg    *canvas.Rectangle
-	lineV *canvas.Rectangle
-	title *canvas.Text
-	avBg  *canvas.Circle
-	avImg *canvas.Image
-	avTxt *canvas.Text
-	name  *canvas.Text
-	sub   *canvas.Text
+	bg             *canvas.Rectangle
+	lineV          *canvas.Rectangle
+	title          *canvas.Text
+	avBg           *canvas.Circle
+	avImg          *canvas.Image
+	avTxt          *canvas.Text
+	name           *canvas.Text
+	sub            *canvas.Text
 	aboutH, aboutV *canvas.Text
-	muteLabel *canvas.Text
-	partsBox  *fyne.Container
-	onClose   func()
-	onMute    func(bool)
+	muteLabel      *canvas.Text
+	partsBox       *fyne.Container
+	onClose        func()
+	onMute         func(bool)
 }
 
 func newChatInfoPanel(onClose func(), onMute func(bool)) *chatInfoPanel {
@@ -88,14 +88,23 @@ func (p *chatInfoPanel) Set(d chatInfoData) {
 	p.title.Text = map[bool]string{true: "Group Info", false: "Contact Info"}[d.IsGroup]
 	p.name.Text = stringsTrim(d.Name)
 	p.sub.Text = stringsTrim(d.Subtitle)
-	if stringsTrim(d.About) != "" { p.aboutV.Text = d.About } else { p.aboutV.Text = "No about info" }
+	if stringsTrim(d.About) != "" {
+		p.aboutV.Text = d.About
+	} else {
+		p.aboutV.Text = "No about info"
+	}
 	if d.Avatar != nil {
-		p.avImg.Resource = d.Avatar; p.avImg.Show(); p.avTxt.Hide()
+		p.avImg.Resource = d.Avatar
+		p.avImg.Show()
+		p.avTxt.Hide()
 	} else {
 		p.avImg.Hide()
 		ini := "?"
-		if r := []rune(stringsTrim(d.Name)); len(r) > 0 { ini = string(r[0]) }
-		p.avTxt.Text = ini; p.avTxt.Show()
+		if r := []rune(stringsTrim(d.Name)); len(r) > 0 {
+			ini = string(r[0])
+		}
+		p.avTxt.Text = ini
+		p.avTxt.Show()
 	}
 	p.muteLabel.Text = map[bool]string{true: "Unmute notifications", false: "Mute notifications"}[d.Muted]
 	p.muteLabel.Color = waText
@@ -106,19 +115,24 @@ func (p *chatInfoPanel) Set(d chatInfoData) {
 		h.TextSize = 12
 		p.partsBox.Add(container.New(&padLayout{h: 16, v: 6}, h))
 		lim := len(d.Participants)
-		if lim > 12 { lim = 12 }
+		if lim > 12 {
+			lim = 12
+		}
 		for i := 0; i < lim; i++ {
 			pt := d.Participants[i]
-			lbl := canvas.NewText(pt.Name, waText); lbl.TextSize = 14
+			lbl := canvas.NewText(pt.Name, waText)
+			lbl.TextSize = 14
 			line := container.New(&padLayout{h: 16, v: 4}, container.NewHBox(lbl))
 			if pt.IsAdmin {
-				tag := canvas.NewText("admin", waAccent); tag.TextSize = 11
-				line = container.New(&padLayout{h: 16, v: 4}, container.NewBorder(nil,nil,lbl,tag,nil))
+				tag := canvas.NewText("admin", waAccent)
+				tag.TextSize = 11
+				line = container.New(&padLayout{h: 16, v: 4}, container.NewBorder(nil, nil, lbl, tag, nil))
 			}
 			p.partsBox.Add(line)
 		}
 		if len(d.Participants) > lim {
-			more := canvas.NewText(fmt.Sprintf("+%d more", len(d.Participants)-lim), waMuted); more.TextSize = 12
+			more := canvas.NewText(fmt.Sprintf("+%d more", len(d.Participants)-lim), waMuted)
+			more.TextSize = 12
 			p.partsBox.Add(container.New(&padLayout{h: 16, v: 4}, more))
 		}
 	}
@@ -126,20 +140,30 @@ func (p *chatInfoPanel) Set(d chatInfoData) {
 	p.Refresh()
 }
 
-func maxI(a, b int) int { if a > b { return a }; return b }
+func maxI(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
 
 func stringsTrim(s string) string {
 	i, j := 0, len(s)
-	for i < j && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r') { i++ }
-	for j > i && (s[j-1] == ' ' || s[j-1] == '\t' || s[j-1] == '\n' || s[j-1] == '\r') { j-- }
+	for i < j && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r') {
+		i++
+	}
+	for j > i && (s[j-1] == ' ' || s[j-1] == '\t' || s[j-1] == '\n' || s[j-1] == '\r') {
+		j--
+	}
 	return s[i:j]
 }
 
 func actionRow(icon, label string, fg color.NRGBA, onTap func()) fyne.CanvasObject {
 	ic := iconImage("act-"+label, icon, 20, fg)
-	lbl := canvas.NewText(label, fg); lbl.TextSize = 14
+	lbl := canvas.NewText(label, fg)
+	lbl.TextSize = 14
 	line := container.New(&padLayout{h: 16, v: 10}, container.NewHBox(ic, container.NewPadded(lbl)))
-	return container.NewMax(&tapArea{onTap: onTap}, line)
+	return container.NewMax(func() { t := &tapArea{onTap: onTap}; t.ExtendBaseWidget(t); return t }(), line)
 }
 
 func (p *chatInfoPanel) CreateRenderer() fyne.WidgetRenderer {
@@ -157,8 +181,11 @@ func (p *chatInfoPanel) CreateRenderer() fyne.WidgetRenderer {
 	searchRow := actionRow(iconSearch, "Search", waText, func() { log.Println("chatinfo: search stub") })
 	muteTap := &tapArea{onTap: func() {
 		want := p.muteLabel.Text == "Mute notifications"
-		if p.onMute != nil { p.onMute(want) }
+		if p.onMute != nil {
+			p.onMute(want)
+		}
 	}}
+	muteTap.ExtendBaseWidget(muteTap)
 	muteIc := iconImage("act-mute", iconMuted, 20, waText)
 	muteLine := container.New(&padLayout{h: 16, v: 10}, container.NewHBox(muteIc, container.NewPadded(p.muteLabel)))
 	muteRow := container.NewMax(muteTap, muteLine)

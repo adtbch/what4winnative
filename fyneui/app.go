@@ -109,7 +109,9 @@ func railItem(path string, name string, active bool, badge int, onTap func()) fy
 		wrap = container.NewMax(wrap, container.NewWithoutLayout(badgeObj))
 	}
 	if onTap != nil {
-		wrap = container.NewMax(wrap, &tapArea{onTap: onTap})
+		ta := &tapArea{onTap: onTap}
+		ta.ExtendBaseWidget(ta)
+		wrap = container.NewMax(wrap, ta)
 	}
 	return wrap
 }
@@ -133,7 +135,7 @@ func (fa *FyneApp) rail() fyne.CanvasObject {
 		container.NewCenter(railItem(iconCommunities, "rail-communities", false, 0, nil)),
 	)
 	bottom := container.NewVBox(
-		container.NewCenter(railItem(iconSettings, "rail-settings", false, 0, func(){ fa.OpenSettings() })),
+		container.NewCenter(railItem(iconSettings, "rail-settings", false, 0, func() { fa.OpenSettings() })),
 		spacer(1, 10),
 		container.NewCenter(railAvatar()),
 		spacer(1, 12),
@@ -306,7 +308,6 @@ func (l *mainSplitLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 }
 
 var _ = color.Transparent
-
 
 func (fa *FyneApp) OpenSettings() {
 	fyne.Do(func() {

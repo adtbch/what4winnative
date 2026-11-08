@@ -90,6 +90,7 @@ func (s *settingsScreen) listPage() fyne.CanvasObject {
 		chev := canvas.NewText("›", waMuted)
 		chev.TextSize = 18
 		tap := &tapArea{onTap: func() { log.Println("settings:", row.Label); s.showDetail(row.Label, row.Danger) }}
+		tap.ExtendBaseWidget(tap)
 		line := container.NewBorder(nil, nil, container.NewPadded(ic), container.NewPadded(chev),
 			container.New(&padLayout{h: 4, v: 10}, lbl))
 		items = append(items, container.NewMax(tap, line))

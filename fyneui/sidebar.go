@@ -250,7 +250,11 @@ func (s *Sidebar) syncChrome() {
 			case "status":
 				s.statusLbl.Text = "No status updates"
 			}
-			s.statusLbl.Refresh()
+			fyne.Do(func() {
+				if s.statusLbl != nil {
+					s.statusLbl.Refresh()
+				}
+			})
 			// The chats view uses EmptyState instead of this label; the other
 			// views keep the label as their own placeholder.
 			if view == "chats" {
@@ -523,7 +527,11 @@ func (s *Sidebar) fetchChats() (int, error) {
 		fyne.Do(func() {
 			if s.statusLbl != nil {
 				s.statusLbl.Text = "Waiting for WhatsApp…"
-				s.statusLbl.Refresh()
+				fyne.Do(func() {
+					if s.statusLbl != nil {
+						s.statusLbl.Refresh()
+					}
+				})
 			}
 		})
 		return 0, err
@@ -547,7 +555,11 @@ func (s *Sidebar) refreshVisible() {
 	fyne.Do(func() {
 		if s.list != nil {
 			s.list.UnselectAll()
-			s.list.Refresh()
+			fyne.Do(func() {
+				if s.list != nil {
+					s.list.Refresh()
+				}
+			})
 		}
 		// ChatScreen.tsx:898 — the empty panel replaces the list only for the
 		// chats view; status/communities/channels have their own placeholders.
@@ -620,7 +632,11 @@ func (s *Sidebar) listenEvents() {
 					fyne.Do(func() {
 						if s.statusLbl != nil {
 							s.statusLbl.Text = "Connecting…"
-							s.statusLbl.Refresh()
+							fyne.Do(func() {
+								if s.statusLbl != nil {
+									s.statusLbl.Refresh()
+								}
+							})
 						}
 					})
 				}
@@ -765,7 +781,11 @@ func (s *Sidebar) loadAvatar(jid string, recache bool) {
 	s.mu.Unlock()
 	fyne.Do(func() {
 		if s.list != nil {
-			s.list.Refresh()
+			fyne.Do(func() {
+				if s.list != nil {
+					s.list.Refresh()
+				}
+			})
 		}
 	})
 }

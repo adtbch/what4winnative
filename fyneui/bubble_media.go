@@ -62,8 +62,8 @@ func newImageVideoBubble(d mediaBubbleData, video bool) fyne.CanvasObject {
 			ph = "GIF"
 		}
 	}
-	phTxt := canvas.NewText(ph+" (offline/cache)", waMuted)
-	phTxt.TextSize = 13
+	phTxt := canvas.NewText(ph+" (offline/cache)", color.NRGBA{R: 0xb0, G: 0xb8, B: 0xc0, A: 255})
+	phTxt.TextSize = 14
 	phTxt.Alignment = fyne.TextAlignCenter
 
 	img := canvas.NewImageFromResource(d.Thumb)
@@ -107,7 +107,7 @@ func newAudioBubble(d mediaBubbleData) fyne.CanvasObject {
 		label = "Audio message"
 	}
 	txt := canvas.NewText(label, waMuted)
-	txt.TextSize = 13
+	txt.TextSize = 14
 	bar := canvas.NewRectangle(color.NRGBA{R: 255, G: 255, B: 255, A: 40})
 	bar.SetMinSize(fyne.NewSize(140, 3))
 	row := container.NewHBox(btn, spacer(8, 1), container.NewVBox(spacer(1, 8), txt, spacer(1, 4), bar))
