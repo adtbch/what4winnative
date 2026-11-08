@@ -61,7 +61,7 @@ type chatRowRefs struct {
 	badgeWrap fyne.CanvasObject
 	pin       fyne.CanvasObject
 	body      fyne.CanvasObject
-	avatarBg  *canvas.Circle
+	avatarBg  *canvas.Rectangle
 	avatarImg *canvas.Image
 	avatarTxt *canvas.Text
 	avPerson  fyne.CanvasObject
@@ -273,7 +273,7 @@ func (s *Sidebar) newRow() fyne.CanvasObject {
 	hover := canvas.NewRectangle(color.Transparent)
 	hover.CornerRadius = 0
 
-	avatarBg := canvas.NewCircle(color.NRGBA{R: 0x37, G: 0x44, B: 0x4c, A: 255})
+	avatarBg := canvas.NewRectangle(color.NRGBA{R: 0x37, G: 0x44, B: 0x4c, A: 255}); avatarBg.CornerRadius = 6
 	avatarImg := canvas.NewImageFromResource(nil)
 	avatarImg.FillMode = canvas.ImageFillCover
 	avatarImg.Hide()

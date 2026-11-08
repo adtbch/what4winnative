@@ -57,3 +57,16 @@ func (t *waTheme) Font(style fyne.TextStyle) fyne.Resource { return t.base.Font(
 func (t *waTheme) Icon(name fyne.ThemeIconName) fyne.Resource { return t.base.Icon(name) }
 
 func (t *waTheme) Size(name fyne.ThemeSizeName) float32 { return t.base.Size(name) }
+
+// borderlessEntryTheme makes widget.Entry blend into a custom pill/card.
+type borderlessEntryTheme struct{ fyne.Theme; bg color.Color }
+
+func (t *borderlessEntryTheme) Color(n fyne.ThemeColorName, v fyne.ThemeVariant) color.Color {
+	switch n {
+	case theme.ColorNameInputBorder, theme.ColorNameInputBackground:
+		return t.bg
+	case theme.ColorNameFocus:
+		return color.Transparent
+	}
+	return t.Theme.Color(n, v)
+}

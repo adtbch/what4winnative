@@ -1,6 +1,7 @@
 package fyneui
 
 import (
+	"net/url"
 	"encoding/base64"
 	"html"
 	"regexp"
@@ -178,6 +179,37 @@ func wrapRuns(runs []htmlRun, maxW, size float32) [][]htmlRun {
 				}
 				ww = runWidth(htmlRun{text: w, bold: r.bold, ital: r.ital}, size)
 			}
+
+			// If a single unbroken token (e.g. long URL) exceeds maxW on its own,
+			// slice it by characters so it wraps instead of overflowing the container.
+			if ww > maxW && len(w) > 1 {
+				runes := []rune(w)
+				var chunk []rune
+				var chunkW float32
+				for _, ch := range runes {
+					cw := runWidth(htmlRun{text: string(ch), bold: r.bold, ital: r.ital}, size)
+					if lineW+chunkW+cw > maxW && (len(chunk) > 0 || lineW > 0) {
+						if len(chunk) > 0 {
+							nr := r
+							nr.text = string(chunk)
+							line = append(line, nr)
+							chunk = nil
+							chunkW = 0
+						}
+						pushLine()
+					}
+					chunk = append(chunk, ch)
+					chunkW += cw
+				}
+				if len(chunk) > 0 {
+					nr := r
+					nr.text = string(chunk)
+					line = append(line, nr)
+					lineW += chunkW
+				}
+				continue
+			}
+
 			nr := r
 			nr.text = w
 			// w already carries its trailing space (SplitAfter); injecting another
@@ -212,15 +244,23 @@ func htmlRichText(src string, maxW, size float32) (*widget.RichText, float32, fl
 	for li, line := range lines {
 		for i, r := range line {
 			st := runStyle(r)
-			// Every segment must be Inline. Fyne treats a non-inline segment as
-			// a paragraph boundary, so the first segment of each line being
-			// non-inline pushed every following word onto its own line. Lines
-			// are already wrapped here, so separate them with a leading newline
-			// instead and let all segments flow inline.
 			st.Inline = true
 			txt := r.text
 			if li > 0 && i == 0 {
 				txt = "\n" + txt
+			}
+			if r.link {
+				href := strings.TrimSpace(txt)
+				// Restore original text for display (newline prefix handled separately)
+				display := r.text
+				if u, err := url.Parse(href); err == nil && u.Scheme != "" && u.Host != "" {
+					hs := &widget.HyperlinkSegment{Text: display, URL: u}
+					hs.TextStyle = st.TextStyle
+					hs.Alignment = st.Alignment
+					segs = append(segs, hs)
+					curW += runWidth(r, size)
+					continue
+				}
 			}
 			segs = append(segs, &widget.TextSegment{Text: txt, Style: st})
 			curW += runWidth(r, size)

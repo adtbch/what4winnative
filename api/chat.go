@@ -1,6 +1,7 @@
 package api
 
 import (
+	"sort"
 	"log"
 	"time"
 
@@ -155,6 +156,7 @@ func (a *Api) GetChatList() ([]ChatElement, error) {
 			IsDefaultSubGroup: isDefaultSub,
 		}
 	}
+	sort.Slice(ce, func(i, j int) bool { return ce[i].LatestTS > ce[j].LatestTS })
 	return ce, nil
 }
 
@@ -179,6 +181,7 @@ func (a *Api) GetChannelList() ([]ChatElement, error) {
 			Contact:       Contact{JID: cm.JID.String(), FullName: name},
 		}
 	}
+	sort.Slice(ce, func(i, j int) bool { return ce[i].LatestTS > ce[j].LatestTS })
 	return ce, nil
 }
 

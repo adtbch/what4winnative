@@ -509,3 +509,64 @@ func (a *Api) DownloadImageToFile(messageID string) error {
 	}()
 	return nil
 }
+
+// SaveMediaToDownloads downloads message media and writes it to ~/Downloads.
+// Fyne-safe (no Wails runtime dialog/notification). Returns saved file path.
+func (a *Api) SaveMediaToDownloads(chatJID, messageID string) (string, error) {
+	if a.messageStore == nil {
+		return "", fmt.Errorf("message store is not ready")
+	}
+	msg, err := a.messageStore.GetMessageWithMedia(chatJID, messageID)
+	if err != nil || msg == nil {
+		return "", fmt.Errorf("message not found")
+	}
+	if msg.Media == nil {
+		return "", fmt.Errorf("message %s has no downloadable media", messageID)
+	}
+	if a.waClient == nil {
+		return "", fmt.Errorf("WhatsApp client is not ready")
+	}
+	mime := msg.Media.GetMimetype()
+	if mime == "" {
+		switch msg.Media.GetMediaType() {
+		case whatsmeow.MediaImage:
+			mime = "image/jpeg"
+		case whatsmeow.MediaVideo:
+			mime = "video/mp4"
+		case whatsmeow.MediaAudio:
+			mime = "audio/ogg"
+		default:
+			mime = "application/octet-stream"
+		}
+	}
+	data, err := a.waClient.Download(a.ctx, msg.Media)
+	if err != nil {
+		return "", fmt.Errorf("failed to download media: %v", err)
+	}
+	homeDir, _ := os.UserHomeDir()
+	downloadsDir := filepath.Join(homeDir, "Downloads")
+	_ = os.MkdirAll(downloadsDir, 0o755)
+	fileName := safeDownloadName(messageID, mime, msg.Media.GetFileName())
+	filePath := filepath.Join(downloadsDir, fileName)
+	// Avoid overwriting: add suffix if exists
+	if _, err := os.Stat(filePath); err == nil {
+		ext := filepath.Ext(fileName)
+		base := strings.TrimSuffix(fileName, ext)
+		for i := 1; i < 1000; i++ {
+			p := filepath.Join(downloadsDir, fmt.Sprintf("%s (%d)%s", base, i, ext))
+			if _, err := os.Stat(p); os.IsNotExist(err) {
+				filePath = p
+				break
+			}
+		}
+	}
+	if err := os.WriteFile(filePath, data, 0o644); err != nil {
+		return "", err
+	}
+	// cache images/stickers
+	if msg.Media.GetMediaType() == whatsmeow.MediaImage && a.imageCache != nil {
+		w, h := msg.Media.GetDimensions()
+		_, _ = a.imageCache.SaveImage(messageID, data, mime, w, h)
+	}
+	return filePath, nil
+}

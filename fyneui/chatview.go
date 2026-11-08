@@ -1,6 +1,8 @@
 package fyneui
 
 import (
+	"net/url"
+	"encoding/base64"
 	"context"
 	"fmt"
 	"image/color"
@@ -16,7 +18,6 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
-	"fyne.io/fyne/v2/widget"
 
 	"github.com/lugvitc/whats4linux/api"
 	"github.com/lugvitc/whats4linux/internal/misc"
@@ -32,7 +33,7 @@ type ChatView struct {
 	chatName string
 	messages *fyne.Container
 	scroll   *container.Scroll
-	entry    *widget.Entry
+	entry    *composerEntry
 	header   *chatHeader
 	cancel   context.CancelFunc
 
@@ -94,7 +95,13 @@ func (cv *ChatView) loadHeader() {
 			}
 			// ChatDetail.tsx only passes onCallClick for contacts.
 			d.Call = func() {
-				dialog.ShowInformation("Call", "Audio/video calling is not supported on this client.", cv.fa.win)
+				if cv.fa == nil || cv.fa.api == nil { return }
+				go func() {
+					if err := cv.fa.api.PlaceCall(cv.jid); err != nil {
+						log.Println("place call:", err)
+						fyne.Do(func() { dialog.ShowError(fmt.Errorf("call failed: %w", err), cv.fa.win) })
+					}
+				}()
 			}
 		}
 		cv.chatName = d.Name
@@ -103,12 +110,21 @@ func (cv *ChatView) loadHeader() {
 		if url, err := cv.fa.api.GetCachedAvatar(cv.jid, false); err == nil && url != "" {
 			d.Avatar = dataURLResource(cv.jid, url)
 		}
-
 		fyne.Do(func() {
 			if cv.header != nil {
 				cv.header.Set(d)
 			}
 		})
+		// If no cached avatar, fetch once and refresh.
+		if d.Avatar == nil && cv.fa != nil && cv.fa.api != nil {
+			if url, err := cv.fa.api.GetCachedAvatar(cv.jid, true); err == nil && url != "" {
+				if res := dataURLResource(cv.jid, url); res != nil {
+					d2 := d
+					d2.Avatar = res
+					fyne.Do(func() { if cv.header != nil { cv.header.Set(d2) } })
+				}
+			}
+		}
 	}()
 }
 
@@ -338,7 +354,13 @@ func (cv *ChatView) bubble(m store.DecodedMessage, first bool) fyne.CanvasObject
 		body = cv.textBlock(messageText(m), maxW)
 	}
 	// MessageItem.tsx renders this for every content type it cannot draw.
-	if strings.TrimSpace(htmlToText(messageText(m))) == "" && content == nil {
+	// Also catch non-nil content structs with no renderable media and empty text
+	// (e.g. SQLite rows with text="" has_media=0 that decode to empty protobuf).
+	plain := strings.TrimSpace(htmlToText(messageText(m)))
+	hasRenderableMedia := content != nil && (content.ImageMessage != nil || content.VideoMessage != nil ||
+		content.StickerMessage != nil || content.AudioMessage != nil || content.DocumentMessage != nil ||
+		m.Poll != nil)
+	if plain == "" && !hasRenderableMedia {
 		body = unsupportedText()
 	}
 
@@ -350,7 +372,18 @@ func (cv *ChatView) bubble(m store.DecodedMessage, first bool) fyne.CanvasObject
 		name.TextStyle = fyne.TextStyle{Bold: true}
 		inner = container.NewVBox(container.NewPadded(name), inner)
 	}
-	return cv.wrapBubble(fromMe, first, content, inner)
+	wrapped := cv.wrapBubble(fromMe, first, content, inner)
+	// Copy: avoid overlay on messages with links (would block HyperlinkSegment taps).
+	// Pragmatic: plain text without http(s) gets tap-to-copy.
+	if plain != "" && !strings.Contains(plain, "http://") && !strings.Contains(plain, "https://") {
+		copyText := plain
+		copyTap := newTapArea(func() {
+			fyne.CurrentApp().Clipboard().SetContent(copyText)
+			log.Println("copied message")
+		})
+		wrapped = container.NewMax(wrapped, copyTap)
+	}
+	return wrapped
 }
 
 // wrapBubble applies bubble background + corner and the 3px/12px/70px outer
@@ -473,15 +506,31 @@ func (cv *ChatView) mediaBlock(m store.DecodedMessage, kind int, maxW float32) f
 	chatID := cv.jid
 	enqueueMediaFetch(cv, chatID, id, kind, img, box)
 
+	msgID := id
+	chatJID := chatID
+	onTap := func() {
+		go func() {
+			if cv.fa == nil || cv.fa.api == nil { return }
+			path, err := cv.fa.api.SaveMediaToDownloads(chatJID, msgID)
+			if err != nil {
+				log.Println("open media:", err)
+				fyne.Do(func() { dialog.ShowError(fmt.Errorf("open failed: %w", err), cv.fa.win) })
+				return
+			}
+			if u, err := url.Parse("file:///" + strings.ReplaceAll(path, "\\", "/")); err == nil {
+				_ = fyne.CurrentApp().OpenURL(u)
+			}
+		}()
+	}
 	if kind == mediaKindVideo {
 		play := canvas.NewText("▶", waWhite)
 		play.TextSize = 34
 		play.Alignment = fyne.TextAlignCenter
 		circle := canvas.NewCircle(waPlayOverlay)
 		overlay := container.NewCenter(container.NewGridWrap(fyne.NewSize(56, 56), container.NewMax(circle, container.NewCenter(play))))
-		return container.NewMax(box, overlay)
+		return container.NewMax(box, overlay, newTapArea(onTap))
 	}
-	return box
+	return container.NewMax(box, newTapArea(onTap))
 }
 
 func (cv *ChatView) audioBlock() fyne.CanvasObject {
@@ -493,7 +542,25 @@ func (cv *ChatView) documentBlock(m store.DecodedMessage) fyne.CanvasObject {
 	if m.Content != nil && m.Content.DocumentMessage != nil && strings.TrimSpace(m.Content.DocumentMessage.FileName) != "" {
 		name = m.Content.DocumentMessage.FileName
 	}
-	return newDocumentBubble(mediaBubbleData{Kind: mediaKindDocument, FileName: name, SizeLabel: "Document"})
+	bubble := newDocumentBubble(mediaBubbleData{Kind: mediaKindDocument, FileName: name, SizeLabel: "Document"})
+	msgID := m.Info.ID
+	chatID := cv.jid
+	tap := newTapArea(func() {
+		go func() {
+			if cv.fa == nil || cv.fa.api == nil { return }
+			path, err := cv.fa.api.SaveMediaToDownloads(chatID, msgID)
+			if err != nil {
+				log.Println("save media:", err)
+				fyne.Do(func() { dialog.ShowError(fmt.Errorf("download failed: %w", err), cv.fa.win) })
+				return
+			}
+			if u, err := url.Parse("file:///" + strings.ReplaceAll(path, "\\", "/")); err == nil {
+				_ = fyne.CurrentApp().OpenURL(u)
+			}
+			fyne.Do(func() { dialog.ShowInformation("Downloaded", "Saved: "+path, cv.fa.win) })
+		}()
+	})
+	return container.NewMax(bubble, tap)
 }
 
 const (
@@ -605,7 +672,10 @@ func (cv *ChatView) Content() fyne.CanvasObject {
 			}
 		}, cv.fa.win)
 	}
-	comp, entry := newComposer(func(s string) { cv.sendText(s) }, onEmoji, onAttach)
+	onPasteImage := func(pngData []byte) {
+		go cv.sendClipboardImage(pngData)
+	}
+	comp, entry := newComposer(func(s string) { cv.sendText(s) }, onEmoji, onAttach, onPasteImage)
 	cv.entry = entry
 	footerBg := canvas.NewRectangle(waPanel)
 	footer := container.NewMax(footerBg, comp)
@@ -773,4 +843,22 @@ func (cv *ChatView) loadInfoData() {
 			cv.infoPanel.Set(d)
 		}
 	})
+}
+
+func (cv *ChatView) sendClipboardImage(pngData []byte) {
+	if cv.fa == nil || cv.fa.api == nil || len(pngData) == 0 {
+		return
+	}
+	b64 := base64.StdEncoding.EncodeToString(pngData)
+	_, err := cv.fa.api.SendMessage(cv.jid, api.MessageContent{
+		Type:       "image",
+		Base64Data: b64,
+		Mimetype:   "image/png",
+	})
+	if err != nil {
+		log.Println("send clipboard image:", err)
+		fyne.Do(func() { dialog.ShowError(fmt.Errorf("send image failed: %w", err), cv.fa.win) })
+		return
+	}
+	cv.appendLatest()
 }

@@ -52,11 +52,9 @@ func TestRenderBubbleSample(t *testing.T) {
 
 // bubbleCorner pins rounded-tl-sm / rounded-tr-sm (MessageItem.tsx:445-446).
 func TestBubbleCorner(t *testing.T) {
-	if bubbleCorner(true, true) != 2 || bubbleCorner(false, true) != 2 {
-		t.Error("firstInGroup must sharpen to 2")
-	}
-	if bubbleCorner(true, false) != 12 || bubbleCorner(false, false) != 12 {
-		t.Error("non-first stays 12")
+	// Intentional deviation: user requested uniform square-ish bubbles.
+	if bubbleCorner(false, true) != 4 || bubbleCorner(true, false) != 4 {
+		t.Fatalf("corners must be uniform (4): got first=%v other=%v", bubbleCorner(false, true), bubbleCorner(true, false))
 	}
 }
 
@@ -165,7 +163,10 @@ func TestBubbleLongToken(t *testing.T) {
 	if bright < 30 {
 		t.Fatalf("long token rendered blank (%d bright px)", bright)
 	}
-	if y1-y0 > 40 {
+	// Wrapped long token should span multiple lines but stay within bubble bounds.
+	// Old regression produced one-word-per-line (very tall, narrow column > 150px).
+	// Proper char-wrap of a 148-char URL at ~292px inner gives ~4 lines (~76px).
+	if y1-y0 > 150 {
 		t.Errorf("long token became a tall column (%d px) — inline-wrap regression", y1-y0)
 	}
 }
@@ -209,9 +210,9 @@ func TestBubbleParitySpec(t *testing.T) {
 	if waTick != hexNRGBA("#53bdeb") {
 		t.Errorf("tick = %#v", waTick)
 	}
-	// corners
-	if bubbleCorner(true, true) != 2 || bubbleCorner(false, true) != 2 || bubbleCorner(true, false) != 12 {
-		t.Error("corner spec")
+	// corners — intentional deviation: uniform 4px
+	if bubbleCorner(true, true) != 4 || bubbleCorner(false, true) != 4 || bubbleCorner(true, false) != 4 {
+		t.Error("corner spec: uniform 4px")
 	}
 }
 

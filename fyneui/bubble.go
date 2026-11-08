@@ -36,12 +36,8 @@ func bubbleBg(fromMe bool) color.Color {
 	return waRecv
 }
 
-func bubbleCorner(fromMe, firstInGroup bool) float32 {
-	if firstInGroup {
-		return 2
-	}
-	return 12
-}
+func bubbleCorner(fromMe, firstInGroup bool) float32 { return 4 }
+
 
 // emojiOnlyText mirrors the stripped+EMOJI_ONLY_RE test in MessageItem.tsx:272-277.
 func emojiOnlyText(text string) bool {

@@ -487,11 +487,23 @@ func (a *Api) SendMessage(chatJID string, content MessageContent) (string, error
 
 	log.Printf("SendMessage Content: %+v\n", msgContent)
 
-	resp, err := a.waClient.SendMessage(a.ctx, parsedJID, msgContent)
-	if err != nil {
-		log.Println("SendMessage error:", err)
-		return "", err
+	var resp whatsmeow.SendResponse
+	var sendErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		resp, sendErr = a.waClient.SendMessage(a.ctx, parsedJID, msgContent)
+		if sendErr == nil {
+			break
+		}
+		es := strings.ToLower(sendErr.Error())
+		if attempt < 2 && (strings.Contains(es, "websocket") || strings.Contains(es, "not connected") || strings.Contains(es, "usync") || strings.Contains(es, "connection")) {
+			log.Println("SendMessage retry:", attempt+1, sendErr)
+			time.Sleep(time.Duration(attempt+1) * 1500 * time.Millisecond)
+			continue
+		}
+		log.Println("SendMessage error:", sendErr)
+		return "", sendErr
 	}
+	err = sendErr
 
 	// Manually add to store and emit event so UI updates immediately
 	msgEvent := &events.Message{

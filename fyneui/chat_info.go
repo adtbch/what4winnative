@@ -41,7 +41,7 @@ type chatInfoPanel struct {
 	bg             *canvas.Rectangle
 	lineV          *canvas.Rectangle
 	title          *canvas.Text
-	avBg           *canvas.Circle
+	avBg           *canvas.Rectangle
 	avImg          *canvas.Image
 	avTxt          *canvas.Text
 	name           *canvas.Text
@@ -61,7 +61,7 @@ func newChatInfoPanel(onClose func(), onMute func(bool)) *chatInfoPanel {
 	p.title = canvas.NewText("Contact Info", waText)
 	p.title.TextSize = 16
 	p.title.TextStyle = fyne.TextStyle{Bold: true}
-	p.avBg = canvas.NewCircle(chatHeaderAvatarBg)
+	p.avBg = func() *canvas.Rectangle{r:=canvas.NewRectangle(chatHeaderAvatarBg);r.CornerRadius=6;return r}()
 	p.avImg = &canvas.Image{FillMode: canvas.ImageFillContain}
 	p.avImg.SetMinSize(fyne.NewSize(chatInfoAvatarSz, chatInfoAvatarSz))
 	p.avTxt = canvas.NewText("?", waWhite)

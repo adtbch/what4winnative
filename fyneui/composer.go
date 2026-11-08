@@ -13,11 +13,35 @@ import (
 // newComposer mirrors ChatInput.tsx:419-566 (pill + separate send circle).
 // Minimal parity surface (YAGNI): emoji/attach are callbacks; advanced features
 // (mention, paste image, attach menu, emoji picker) are out of this component.
-func newComposer(onSend func(string), onEmoji, onAttach func()) (fyne.CanvasObject, *widget.Entry) {
-	entry := widget.NewMultiLineEntry()
-	entry.SetPlaceHolder("Message")
-	entry.Wrapping = fyne.TextWrapWord
-	entry.SetMinRowsVisible(1)
+// composerEntry intercepts paste to support image clipboard (Windows DIB).
+type composerEntry struct {
+	widget.Entry
+	onPasteImage func(pngData []byte)
+}
+
+func newComposerEntry(onPasteImage func([]byte)) *composerEntry {
+	e := &composerEntry{onPasteImage: onPasteImage}
+	e.MultiLine = true
+	e.Wrapping = fyne.TextWrapWord
+	e.ExtendBaseWidget(e)
+	e.SetPlaceHolder("Message")
+	e.SetMinRowsVisible(1)
+	return e
+}
+
+func (e *composerEntry) TypedShortcut(s fyne.Shortcut) {
+	if _, ok := s.(*fyne.ShortcutPaste); ok && e.onPasteImage != nil {
+		if pngData, err := readClipboardImagePNG(); err == nil && len(pngData) > 0 {
+			e.onPasteImage(pngData)
+			return
+		}
+		// fall through to default text paste
+	}
+	e.Entry.TypedShortcut(s)
+}
+
+func newComposer(onSend func(string), onEmoji, onAttach func(), onPasteImage func([]byte)) (fyne.CanvasObject, *composerEntry) {
+	entry := newComposerEntry(onPasteImage)
 
 	send := func() {
 		text := entry.Text

@@ -51,6 +51,7 @@ func newSearchBar(placeholder string, onChange func(string)) *searchBar {
 	s.entry = widget.NewEntry()
 	s.entry.SetPlaceHolder(placeholder)
 	s.entry.TextStyle = fyne.TextStyle{}
+	// border handled by outer pill; entry styled by theme override at container
 	s.entry.OnChanged = func(v string) {
 		if s.silent {
 			return

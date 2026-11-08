@@ -62,7 +62,7 @@ type chatHeader struct {
 	bg    *canvas.Rectangle
 	line  *canvas.Rectangle
 	back  fyne.CanvasObject
-	avBg  *canvas.Circle
+	avBg  *canvas.Rectangle
 	avImg *canvas.Image
 	avTxt *canvas.Text
 	name  *canvas.Text
@@ -132,7 +132,7 @@ func newChatHeader(onBack, onInfo func(), d chatHeaderData) *chatHeader {
 	backImg := iconImage("ch-back", iconBack, chatHeaderBackSize, chatHeaderCallFg)
 	h.back = newIconBox(backImg, onBack, chatHeaderBackSize, chatHeaderBackSize)
 
-	h.avBg = canvas.NewCircle(chatHeaderAvatarBg)
+	h.avBg = func() *canvas.Rectangle{r:=canvas.NewRectangle(chatHeaderAvatarBg);r.CornerRadius=6;return r}()
 	h.avImg = canvas.NewImageFromResource(nil)
 	h.avImg.FillMode = canvas.ImageFillCover
 	h.avTxt = canvas.NewText("", color.White)
