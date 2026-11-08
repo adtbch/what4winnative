@@ -78,8 +78,9 @@ func TestSearchBarPillColour(t *testing.T) {
 		fyne.NewSize(reactSearchWidth, reactSearchBarHeight))
 	assertNotBlank(t, img, 0.02)
 
-	// pill centre, away from the icon and text.
-	c := img.At(reactSearchWidth/2, reactSearchBarHeight/2)
+	// pill centre, away from the icon and text. Entry is now height-fit and
+	// vertically centered, so sample a point guaranteed inside the pill bg.
+	c := img.At(reactSearchWidth/2, 10)
 	r, g, b, _ := c.RGBA()
 	if r>>8 != 0x24 || g>>8 != 0x26 || b>>8 != 0x26 {
 		t.Fatalf("pill fill = #%02x%02x%02x, want %s", r>>8, g>>8, b>>8, reactSearchPillBg)

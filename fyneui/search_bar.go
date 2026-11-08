@@ -111,14 +111,18 @@ func (r *searchBarRenderer) Layout(size fyne.Size) {
 	r.s.icon.Resize(fyne.NewSize(searchIconSize, searchIconSize))
 	r.s.icon.Move(fyne.NewPos(searchOuterPadX+searchPillPadX, iconY))
 
-	// widget.Entry draws its text with a fixed ~12px inset from the top of its
-	// box, so centring the box would push the glyphs to the bottom of the pill.
-	// React centres a 20px line box (ink at y 13..24); lifting the entry by
-	// entryInkInset-searchOuterPadY puts Fyne's ink on the same rows.
+	// Position Entry so its ink/cursor sits vertically centered in the 36px pill.
+	// Previous fixed lift (-7) caused misalignment across themes/platform metrics;
+	// use Entry.MinSize() height + a small nudge.
 	entryX := searchOuterPadX + searchPillPadX + searchIconSize + searchIconMR
 	entryW := pillW - searchPillPadX*2 - searchIconSize - searchIconMR
-	r.s.entryChrome.Resize(fyne.NewSize(entryW, searchPillH))
-	r.s.entryChrome.Move(fyne.NewPos(entryX, searchOuterPadY+searchTextLift))
+	entryH := r.s.entry.MinSize().Height
+	if entryH <= 0 {
+		entryH = searchPillH
+	}
+	entryY := searchOuterPadY + (searchPillH-entryH)/2 - 2
+	r.s.entryChrome.Resize(fyne.NewSize(entryW, entryH))
+	r.s.entryChrome.Move(fyne.NewPos(entryX, entryY))
 }
 
 func (r *searchBarRenderer) MinSize() fyne.Size {
