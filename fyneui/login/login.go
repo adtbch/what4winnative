@@ -1,14 +1,15 @@
 package fyneui
 
 import (
+	"time"
 	"image/color"
 	"strings"
-
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	qrcode "github.com/skip2/go-qrcode"
 )
+
 
 var (
 	bgPage       = color.NRGBA{R: 240, G: 242, B: 245, A: 255} // bg-light-secondary approx
@@ -44,6 +45,14 @@ func NewLoginScreen(fa *FyneApp) *LoginScreen {
 	go ls.listenEvents()
 	go func() {
 		if fa.api.IsLoggedIn() {
+			// Wait until the websocket is connected before showing the chat UI.
+			for !fa.api.IsWaConnected() {
+				fyne.Do(func() {
+					ls.status.Text = "CONNECTING…"
+					ls.status.Refresh()
+				})
+				time.Sleep(200 * time.Millisecond)
+			}
 			fyne.Do(func() { fa.SwitchToChats() })
 			return
 		}

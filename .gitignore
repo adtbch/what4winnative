@@ -21,3 +21,6 @@ docs/
 /fyne.exe
 /nul
 fyneui/testdata/out/*.png
+graphify-out/*
+kilo/*
+AGENTS.md
