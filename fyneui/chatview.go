@@ -277,10 +277,14 @@ func (cv *ChatView) appendLatest() {
 		return
 	}
 	sort.SliceStable(msgs, func(i, j int) bool { return msgTime(msgs[i]).Before(msgTime(msgs[j])) })
+	var newUnreadIDs []string
 	fyne.Do(func() {
 		for _, m := range msgs {
 			if m.Info.ID != "" && cv.rendered[m.Info.ID] {
 				continue
+			}
+			if !m.Info.IsFromMe && m.Info.ID != "" {
+				newUnreadIDs = append(newUnreadIDs, m.Info.ID)
 			}
 			cv.addMessageLocked(m)
 		}
@@ -289,6 +293,13 @@ func (cv *ChatView) appendLatest() {
 			cv.scroll.ScrollToBottom()
 		}
 	})
+	if len(newUnreadIDs) > 0 {
+		go func(ids []string) {
+			if err := cv.fa.api.MarkRead(cv.jid, ids, "read"); err != nil {
+				log.Println("MarkRead appendLatest:", err)
+			}
+		}(newUnreadIDs)
+	}
 }
 
 func msgTime(m store.DecodedMessage) time.Time {

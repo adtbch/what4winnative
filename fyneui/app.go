@@ -17,6 +17,7 @@ import (
 )
 
 type FyneApp struct {
+	currentCV *ChatView
 	app    fyne.App
 	win    fyne.Window
 	api    *api.Api
@@ -61,7 +62,12 @@ func (fa *FyneApp) OpenChat(jid string) {
 		return
 	}
 	fa.state.SetSelectedChatID(jid)
+	old := fa.currentCV
 	cv := NewChatView(fa, jid)
+	fa.currentCV = cv
+	if old != nil && old.cancel != nil {
+		old.cancel()
+	}
 	fyne.Do(func() {
 		if fa.chatPane == nil {
 			return
@@ -73,6 +79,10 @@ func (fa *FyneApp) OpenChat(jid string) {
 
 func (fa *FyneApp) OpenEmptyChat() {
 	fa.state.SetSelectedChatID("")
+	if fa.currentCV != nil && fa.currentCV.cancel != nil {
+		fa.currentCV.cancel()
+		fa.currentCV = nil
+	}
 	fyne.Do(func() {
 		if fa.chatPane == nil {
 			return
