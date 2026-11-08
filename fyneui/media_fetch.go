@@ -3,6 +3,7 @@ package fyneui
 import (
 	"log"
 	"sync"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -21,12 +22,17 @@ type mediaFetchJob struct {
 	gen    uint64 // stale-guard: must match cv generation when applying
 }
 
-const mediaFetchWorkers = 3
+const (
+	mediaFetchWorkers  = 3
+	mediaRetryCooldown = 60 * time.Second
+)
 
 var (
-	mediaFetchOnce   sync.Once
-	mediaFetchQueue  chan mediaFetchJob
+	mediaFetchOnce     sync.Once
+	mediaFetchQueue    chan mediaFetchJob
 	mediaFetchInflight sync.Map // key msgID -> struct{}
+	mediaFetchFailMu   sync.Mutex
+	mediaFetchFailedAt = map[string]time.Time{} // cooldown: avoid offline flood
 )
 
 func startMediaFetchers() {
@@ -42,6 +48,12 @@ func enqueueMediaFetch(cv *ChatView, chatID, msgID string, kind int, img *canvas
 	if cv == nil || cv.fa == nil || cv.fa.api == nil || msgID == "" || img == nil {
 		return
 	}
+	mediaFetchFailMu.Lock()
+	if t, ok := mediaFetchFailedAt[msgID]; ok && time.Since(t) < mediaRetryCooldown {
+		mediaFetchFailMu.Unlock()
+		return
+	}
+	mediaFetchFailMu.Unlock()
 	startMediaFetchers()
 	if _, loaded := mediaFetchInflight.LoadOrStore(msgID, struct{}{}); loaded {
 		return
@@ -75,10 +87,18 @@ func mediaFetchWorker() {
 					}
 				}
 				if dataURL == "" && job.active() {
-					if u, err := api.DownloadMedia(job.chatID, job.msgID); err == nil {
+					if !api.IsWaConnected() {
+						// Offline: thumbnail/cache already tried; back off to stop flood.
+						mediaFetchFailMu.Lock()
+						mediaFetchFailedAt[job.msgID] = time.Now()
+						mediaFetchFailMu.Unlock()
+					} else if u, err := api.DownloadMedia(job.chatID, job.msgID); err == nil {
 						dataURL = u
 					} else {
 						log.Println("DownloadMedia:", job.msgID, err)
+						mediaFetchFailMu.Lock()
+						mediaFetchFailedAt[job.msgID] = time.Now()
+						mediaFetchFailMu.Unlock()
 					}
 				}
 			}

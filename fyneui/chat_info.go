@@ -163,7 +163,7 @@ func actionRow(icon, label string, fg color.NRGBA, onTap func()) fyne.CanvasObje
 	lbl := canvas.NewText(label, fg)
 	lbl.TextSize = 14
 	line := container.New(&padLayout{h: 16, v: 10}, container.NewHBox(ic, container.NewPadded(lbl)))
-	return container.NewMax(func() { t := &tapArea{onTap: onTap}; t.ExtendBaseWidget(t); return t }(), line)
+	return container.NewMax(newTapArea(onTap), line)
 }
 
 func (p *chatInfoPanel) CreateRenderer() fyne.WidgetRenderer {

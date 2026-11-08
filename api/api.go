@@ -61,7 +61,13 @@ type Api struct {
 	appStateResync      atomic.Bool
 }
 
-
+func (a *Api) IsWaConnected() bool {
+	a.waitForStartup()
+	a.lifecycleMu.Lock()
+	c := a.waClient
+	a.lifecycleMu.Unlock()
+	return c != nil && c.IsConnected()
+}
 
 func (a *Api) IsLoggedIn() bool {
 	a.waitForStartup()
