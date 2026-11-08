@@ -15,6 +15,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/lugvitc/whats4linux/api"
@@ -92,7 +93,9 @@ func (cv *ChatView) loadHeader() {
 				}
 			}
 			// ChatDetail.tsx only passes onCallClick for contacts.
-			d.Call = func() {}
+			d.Call = func() {
+				dialog.ShowInformation("Call", "Audio/video calling is not supported on this client.", cv.fa.win)
+			}
 		}
 		cv.chatName = d.Name
 
@@ -364,10 +367,13 @@ func cvWrapBubble(fromMe, first bool, content *store.DecodedMessageContent, inne
 	if first {
 		top = 8
 	}
+	var row fyne.CanvasObject
 	if fromMe {
-		return container.NewBorder(spacer(1, top), spacer(1, 1), spacer(70, 1), spacer(12, 1), stack)
+		row = container.NewHBox(layout.NewSpacer(), stack)
+	} else {
+		row = container.NewHBox(stack, layout.NewSpacer())
 	}
-	return container.NewBorder(spacer(1, top), spacer(1, 1), spacer(12, 1), spacer(70, 1), stack)
+	return container.NewBorder(spacer(1, top), spacer(1, 1), spacer(12, 1), spacer(12, 1), row)
 }
 
 func (cv *ChatView) wrapBubble(fromMe, first bool, content *store.DecodedMessageContent, inner fyne.CanvasObject) fyne.CanvasObject {
@@ -389,7 +395,7 @@ func (cv *ChatView) metaRow(m store.DecodedMessage, fromMe bool) fyne.CanvasObje
 		ticks.TextSize = 11
 		row.Add(ticks)
 	}
-	return container.NewHBox(spacer(1, 1), row)
+	return container.NewHBox(layout.NewSpacer(), row)
 }
 
 // textBlock renders message HTML (api.processMessageText output) at maxW.
@@ -581,7 +587,25 @@ func (cv *ChatView) Content() fyne.CanvasObject {
 	cv.scroll = container.NewVScroll(container.New(&padLayout{h: 0, v: 6}, cv.messages))
 	chatBody := container.NewMax(chatBackground(fyne.NewSize(0, 0)), cv.scroll)
 
-	comp, entry := newComposer(func(s string) { cv.sendText(s) }, func() {}, func() {})
+	onEmoji := func() {
+		if cv.entry != nil {
+			cv.entry.SetText(cv.entry.Text + "😊")
+		}
+	}
+	onAttach := func() {
+		dialog.ShowFileOpen(func(reader fyne.URIReadCloser, err error) {
+			if err != nil || reader == nil {
+				return
+			}
+			path := reader.URI().Path()
+			_ = reader.Close()
+			if path != "" {
+				log.Println("composer attach selected:", path)
+				dialog.ShowInformation("Attachment", fmt.Sprintf("Selected: %s\nAttachment sending is coming soon.", path), cv.fa.win)
+			}
+		}, cv.fa.win)
+	}
+	comp, entry := newComposer(func(s string) { cv.sendText(s) }, onEmoji, onAttach)
 	cv.entry = entry
 	footerBg := canvas.NewRectangle(waPanel)
 	footer := container.NewMax(footerBg, comp)

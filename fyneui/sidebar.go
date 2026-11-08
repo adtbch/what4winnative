@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -742,9 +743,46 @@ func (s *Sidebar) handleNewMessage(data any) {
 }
 
 func (s *Sidebar) loadAvatars(chats []api.ChatElement) {
-	const workers = 4
+	// First pass: load only from local cache (fast, non-blocking)
+	var updated bool
+	for _, c := range chats {
+		jid := c.JID
+		if jid == "" {
+			continue
+		}
+		s.mu.RLock()
+		_, has := s.avatarRes[jid]
+		s.mu.RUnlock()
+		if has {
+			continue
+		}
+		// If cached locally, read it immediately without network
+		if dataURL, err := s.fa.api.GetCachedAvatar(jid, false); err == nil && dataURL != "" {
+			if res := resourceFromDataURL(jid, dataURL); res != nil {
+				s.mu.Lock()
+				s.avatarRes[jid] = res
+				s.mu.Unlock()
+				updated = true
+			}
+		}
+	}
+	if updated {
+		fyne.Do(func() {
+			if s.list != nil {
+				s.list.Refresh()
+			}
+		})
+	}
+
+	// Network fetch only when WA is connected
+	if !s.fa.api.IsWaConnected() {
+		return
+	}
+
+	const workers = 2
 	sem := make(chan struct{}, workers)
 	var wg sync.WaitGroup
+	var networkUpdated atomic.Bool
 	for _, c := range chats {
 		jid := c.JID
 		if jid == "" {
@@ -761,10 +799,24 @@ func (s *Sidebar) loadAvatars(chats []api.ChatElement) {
 		go func(j string) {
 			defer wg.Done()
 			defer func() { <-sem }()
-			s.loadAvatar(j, false)
+			if dataURL, err := s.fa.api.GetCachedAvatar(j, false); err == nil && dataURL != "" {
+				if res := resourceFromDataURL(j, dataURL); res != nil {
+					s.mu.Lock()
+					s.avatarRes[j] = res
+					s.mu.Unlock()
+					networkUpdated.Store(true)
+				}
+			}
 		}(jid)
 	}
 	wg.Wait()
+	if networkUpdated.Load() {
+		fyne.Do(func() {
+			if s.list != nil {
+				s.list.Refresh()
+			}
+		})
+	}
 }
 
 func (s *Sidebar) loadAvatar(jid string, recache bool) {
@@ -781,11 +833,7 @@ func (s *Sidebar) loadAvatar(jid string, recache bool) {
 	s.mu.Unlock()
 	fyne.Do(func() {
 		if s.list != nil {
-			fyne.Do(func() {
-				if s.list != nil {
-					s.list.Refresh()
-				}
-			})
+			s.list.Refresh()
 		}
 	})
 }
