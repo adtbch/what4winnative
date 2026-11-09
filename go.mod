@@ -1,4 +1,4 @@
-module github.com/lugvitc/whats4linux
+module github.com/adtbch/whats4linux
 
 go 1.26.5
 

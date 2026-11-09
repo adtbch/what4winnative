@@ -8,7 +8,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"github.com/lugvitc/whats4linux/fyneui/theme"
+	"github.com/adtbch/whats4linux/fyneui/theme"
 )
 
 // chatBackground returns WA-like dark chat bg with subtle doodle pattern.

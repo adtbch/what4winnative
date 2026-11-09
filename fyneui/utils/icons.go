@@ -10,7 +10,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/widget"
-	"github.com/lugvitc/whats4linux/fyneui/theme"
+	"github.com/adtbch/whats4linux/fyneui/theme"
 )
 
 // WhatsApp icon set, traced from frontend/src/assets/svgs/*.tsx so the Fyne

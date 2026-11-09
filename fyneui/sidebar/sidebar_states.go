@@ -10,8 +10,8 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/widget"
-	"github.com/lugvitc/whats4linux/fyneui/theme"
-	"github.com/lugvitc/whats4linux/fyneui/utils"
+	"github.com/adtbch/whats4linux/fyneui/theme"
+	"github.com/adtbch/whats4linux/fyneui/utils"
 )
 
 // Values measured from frontend/src/harness.tsx `out.archived` and `out.empty`

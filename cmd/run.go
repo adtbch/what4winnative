@@ -3,10 +3,10 @@ package cmd
 import (
 	"io/fs"
 
-	apiPkg "github.com/lugvitc/whats4linux/api"
-	"github.com/lugvitc/whats4linux/internal/misc"
-	"github.com/lugvitc/whats4linux/internal/server"
-	"github.com/lugvitc/whats4linux/internal/store"
+	apiPkg "github.com/adtbch/whats4linux/api"
+	"github.com/adtbch/whats4linux/internal/misc"
+	"github.com/adtbch/whats4linux/internal/server"
+	"github.com/adtbch/whats4linux/internal/store"
 	"github.com/urfave/cli"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"

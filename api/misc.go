@@ -4,9 +4,9 @@ import (
 	"html"
 	"strings"
 
-	"github.com/lugvitc/whats4linux/internal/misc"
-	"github.com/lugvitc/whats4linux/internal/settings"
-	"github.com/lugvitc/whats4linux/internal/store"
+	"github.com/adtbch/whats4linux/internal/misc"
+	"github.com/adtbch/whats4linux/internal/settings"
+	"github.com/adtbch/whats4linux/internal/store"
 	"go.mau.fi/whatsmeow/types"
 )
 

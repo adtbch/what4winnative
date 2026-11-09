@@ -6,7 +6,7 @@ import (
 
 	"os"
 
-	"github.com/lugvitc/whats4linux/cmd"
+	"github.com/adtbch/whats4linux/cmd"
 )
 
 //go:embed all:frontend/dist

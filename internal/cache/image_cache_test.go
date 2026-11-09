@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/lugvitc/whats4linux/internal/query"
+	"github.com/adtbch/whats4linux/internal/query"
 	_ "github.com/mattn/go-sqlite3"
 )
 

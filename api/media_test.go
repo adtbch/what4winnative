@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lugvitc/whats4linux/internal/cache"
-	"github.com/lugvitc/whats4linux/internal/misc"
-	messageStore "github.com/lugvitc/whats4linux/internal/store"
+	"github.com/adtbch/whats4linux/internal/cache"
+	"github.com/adtbch/whats4linux/internal/misc"
+	messageStore "github.com/adtbch/whats4linux/internal/store"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	"google.golang.org/protobuf/proto"

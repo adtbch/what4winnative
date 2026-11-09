@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/getlantern/systray"
-	"github.com/lugvitc/whats4linux/shared/socket"
+	"github.com/adtbch/whats4linux/shared/socket"
 )
 
 var conn net.Conn

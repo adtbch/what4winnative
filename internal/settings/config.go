@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/lugvitc/whats4linux/internal/misc"
+	"github.com/adtbch/whats4linux/internal/misc"
 )
 
 type _settings struct {

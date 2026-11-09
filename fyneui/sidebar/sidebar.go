@@ -18,10 +18,10 @@ import (
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/lugvitc/whats4linux/api"
-	"github.com/lugvitc/whats4linux/fyneui/chat"
-	"github.com/lugvitc/whats4linux/fyneui/theme"
-	"github.com/lugvitc/whats4linux/fyneui/utils"
+	"github.com/adtbch/whats4linux/api"
+	"github.com/adtbch/whats4linux/fyneui/chat"
+	"github.com/adtbch/whats4linux/fyneui/theme"
+	"github.com/adtbch/whats4linux/fyneui/utils"
 )
 
 // Sidebar mirrors frontend/src/screens/ChatScreen.tsx: a 64px header

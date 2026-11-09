@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lugvitc/whats4linux/internal/wa"
+	"github.com/adtbch/whats4linux/internal/wa"
 	"go.mau.fi/whatsmeow/types"
 )
 

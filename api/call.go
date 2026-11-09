@@ -5,7 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 
-	"github.com/lugvitc/whats4linux/internal/voip"
+	"github.com/adtbch/whats4linux/internal/voip"
 	"go.mau.fi/whatsmeow/types"
 )
 

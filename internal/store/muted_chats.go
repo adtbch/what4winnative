@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/lugvitc/whats4linux/internal/query"
+	"github.com/adtbch/whats4linux/internal/query"
 )
 
 // SetChatMuted persists the mute state for a chat. mutedUntil is unix seconds:

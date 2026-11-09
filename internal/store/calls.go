@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"log"
 
-	"github.com/lugvitc/whats4linux/internal/query"
+	"github.com/adtbch/whats4linux/internal/query"
 )
 
 func (ms *MessageStore) CallStarted(id, peer, chatJID, direction, state string, startedAt int64) {

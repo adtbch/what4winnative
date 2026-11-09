@@ -20,11 +20,11 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
 
-	"github.com/lugvitc/whats4linux/api"
-	"github.com/lugvitc/whats4linux/fyneui/theme"
-	"github.com/lugvitc/whats4linux/fyneui/utils"
-	"github.com/lugvitc/whats4linux/internal/misc"
-	"github.com/lugvitc/whats4linux/internal/store"
+	"github.com/adtbch/whats4linux/api"
+	"github.com/adtbch/whats4linux/fyneui/theme"
+	"github.com/adtbch/whats4linux/fyneui/utils"
+	"github.com/adtbch/whats4linux/internal/misc"
+	"github.com/adtbch/whats4linux/internal/store"
 	"go.mau.fi/whatsmeow/types"
 )
 

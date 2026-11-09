@@ -8,8 +8,8 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"github.com/lugvitc/whats4linux/fyneui/theme"
-	"github.com/lugvitc/whats4linux/fyneui/utils"
+	"github.com/adtbch/whats4linux/fyneui/theme"
+	"github.com/adtbch/whats4linux/fyneui/utils"
 )
 
 // mediaBubbleData is the render input for T11 (MediaContent.tsx / MessageItem).

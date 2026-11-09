@@ -4,7 +4,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/lugvitc/whats4linux/internal/store"
+	"github.com/adtbch/whats4linux/internal/store"
 	"go.mau.fi/whatsmeow/appstate"
 	"go.mau.fi/whatsmeow/types"
 )

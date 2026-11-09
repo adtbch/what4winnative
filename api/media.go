@@ -13,8 +13,8 @@ import (
 	"unicode"
 
 	"github.com/gen2brain/beeep"
-	"github.com/lugvitc/whats4linux/internal/store"
-	mtypes "github.com/lugvitc/whats4linux/internal/types"
+	"github.com/adtbch/whats4linux/internal/store"
+	mtypes "github.com/adtbch/whats4linux/internal/types"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"

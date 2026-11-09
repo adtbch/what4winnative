@@ -11,9 +11,9 @@ import (
 	"fyne.io/fyne/v2/container"
 	qrcode "github.com/skip2/go-qrcode"
 
-	"github.com/lugvitc/whats4linux/api"
-	"github.com/lugvitc/whats4linux/fyneui/theme"
-	"github.com/lugvitc/whats4linux/fyneui/utils"
+	"github.com/adtbch/whats4linux/api"
+	"github.com/adtbch/whats4linux/fyneui/theme"
+	"github.com/adtbch/whats4linux/fyneui/utils"
 )
 
 var (

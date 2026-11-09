@@ -8,7 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/lugvitc/whats4linux/internal/misc"
+	"github.com/adtbch/whats4linux/internal/misc"
 )
 
 // notificationsKey is the app_settings.json key for the global

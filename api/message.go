@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lugvitc/whats4linux/internal/markdown"
-	"github.com/lugvitc/whats4linux/internal/store"
-	mtypes "github.com/lugvitc/whats4linux/internal/types"
+	"github.com/adtbch/whats4linux/internal/markdown"
+	"github.com/adtbch/whats4linux/internal/store"
+	mtypes "github.com/adtbch/whats4linux/internal/types"
 	"go.mau.fi/util/random"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/appstate"

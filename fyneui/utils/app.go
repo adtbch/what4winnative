@@ -3,7 +3,7 @@ package utils
 import (
 	"sync"
 
-	"github.com/lugvitc/whats4linux/api"
+	"github.com/adtbch/whats4linux/api"
 )
 
 // AppState holds the session state shared between the shell and its UI

@@ -1,7 +1,7 @@
 package wa
 
 import (
-	"github.com/lugvitc/whats4linux/internal/types"
+	"github.com/adtbch/whats4linux/internal/types"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 )

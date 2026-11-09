@@ -3,7 +3,7 @@ package wa
 import (
 	"context"
 
-	"github.com/lugvitc/whats4linux/internal/settings"
+	"github.com/adtbch/whats4linux/internal/settings"
 	_ "github.com/mattn/go-sqlite3"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
